@@ -63,9 +63,17 @@ def get_unused_figidx(var_to_plot, nrows, ncols):
     unused_idxs = list(range(num_vars_to_plot, num_subplots))
     return unused_idxs
 
+
+def remove_nandata(t, y):
+    idx_to_keep = np.where(~np.isnan(y))[0]
+    y = y[idx_to_keep]
+    t = t[idx_to_keep]
+    return t, y
+
 def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_dict, figtitle=None, savefig=None):
     fig, ax = plt.subplots(nrows, ncols, figsize=figsize)
-    legend = []    
+    legend = []   
+    axs_with_content = []
     for k in datadict:
         d_exp = datadict[k]
         
@@ -79,14 +87,17 @@ def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_d
         for idx, var in enumerate(var_to_plot):
             i, j = convert_figidx_to_rowcolidx(idx, ncols)
             if var in d_exp:
-                ax[i][j].plot(d_exp[var]['t'],d_exp[var]['y'], c=color, alpha=0.9)
+                t, y = d_exp[var]['t'],d_exp[var]['y']
+                t, y = remove_nandata(t,y)
+                ax[i][j].plot(t, y, c=color, alpha=0.9)
                 ax[i][j].set_ylabel(var)
-            else: 
-                ax[i][j].set_axis_off()
-                print(f'{var} missing from dataset.')
+                if var not in axs_with_content:
+                    axs_with_content.append(var)
     
     # remove unused axes
+    axs_without_content = [idx for idx, var in enumerate(var_to_plot) if var not in axs_with_content]
     unused_idxs =  get_unused_figidx(var_to_plot, nrows, ncols)
+    unused_idxs += axs_without_content
     for idx in unused_idxs:
         i, j = convert_figidx_to_rowcolidx(idx, ncols)
         ax[i][j].set_axis_off()
@@ -110,8 +121,8 @@ def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_d
 #%% get data
 
 # set dataset name
-# dataset_name = 'dataset2_avg'
-dataset_name = 'DATA_ALL_avg'
+dataset_name = 'dataset1'
+# dataset_name = 'DATA_avg'
 pkl_fname = f'{dataset_name}.pkl'
 
 # open pickle file
@@ -137,7 +148,7 @@ var_to_plot = [
     'VCD (E6 cells/mL)',
     'Viability (%)',
     'Titer (mg/L)',
-    'qP (pg/cell/day)',
+    # 'qP (pg/cell/day)',
     'Glucose (g/L)',
     'Lac (g/L)',
     'NH4+ (mM)',
@@ -155,7 +166,7 @@ var_to_plot = [
     ]
 
 figsize = (22,20)
-nrows = 5
+nrows = 4
 ncols = 4
 figtitle = 'VCD, Via, Titer, Metabolite & Glycosylation CQAs'
 savefig = f'{figure_folder}{dataset_name}_Bioreactor_Glyco_CQAs.png'
@@ -195,7 +206,7 @@ var_to_plot = [
      'Adenosine'
  ]
     
-figsize = (26,20)
+figsize = (28,20)
 nrows = 5
 ncols = 6
 figtitle = 'Amino Acid, Nuc, Amine concentrations'

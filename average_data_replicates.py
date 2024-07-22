@@ -35,14 +35,14 @@ def align_ydata_by_timpoints(vardata_agg_t, vardata_agg_y):
     for k, (tlist, ylist) in enumerate(zip(vardata_agg_t, vardata_agg_y)):
         matching_idxs = get_idxs_matching_elements(tseq, tlist)
         vardata_agg_y_[k,matching_idxs] = np.array(ylist)
-    return tseq, vardata_agg_y_
+    return np.array(tseq), vardata_agg_y_
 
 
 #%% 
 # set dataset name
-# dataset_num = 2
-# dataset_name = f'dataset{dataset_num}'
-dataset_name = 'DATA_ALL'
+dataset_num = 2
+dataset_name = f'dataset{dataset_num}'
+# dataset_name = 'DATA'
 pkl_fname = f'{dataset_name}.pkl'
 
 # open pickle file

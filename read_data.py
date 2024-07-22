@@ -130,11 +130,11 @@ def append_to_datadict(d, d_in, d_out):
 data_folder = '../ajino-analytics-data/'
 rawdata_dict = {
     0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows':[2,2,2,2,2], 'usecols':['B:BZ', 'B:DQ', 'B:BD', 'B:BD', 'B:AY'], 'cqa_startcol':[5,5,5,5,5], },
-    1: {'fname': '240704_22DX05-12_media combination_AJI-Astar_v1.xlsx', 'skiprows':[2,2,2,2,2,2], 'usecols':['B:BH', 'B:FN', 'B:CA', 'B:CA', 'B:BS', 'B:AK'], 'cqa_startcol':[8,8,8,8,8,8], },
+    1: {'fname': '240704_22DX05-12_media combination_AJI-Astar_v1.xlsx', 'skiprows':[2,2,2,2,2,2], 'usecols':['B:BH', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK'], 'cqa_startcol':[8,8,8,8,8,8], },
     2: {'fname': '240710_22DX05-12_process combination_AJI-Astar_v2.xlsx', 'skiprows':[2,2,2,2,2,2], 'usecols':['B:BF', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK'], 'cqa_startcol':[8,8,8,8,8,8], },
     }
 
-dataset_num = 2
+dataset_num = 1
 dataset_info = rawdata_dict[dataset_num]
 fname = dataset_info['fname']
 skiprows_list = dataset_info['skiprows']
@@ -235,7 +235,7 @@ for dataset_num in rawdata_dict:
         data = pickle.load(handle)
     data_all.update(data)
     
-with open(f'{data_folder}DATA_ALL.pkl', 'wb') as handle:
+with open(f'{data_folder}DATA.pkl', 'wb') as handle:
     pickle.dump(data_all, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
