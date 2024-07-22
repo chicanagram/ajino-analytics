@@ -1,12 +1,20 @@
+# python3 -c "import sys; print(sys.executable)"
+# /Users/charmainechia/.local/share/virtualenvs/ajino-analytics-KDDfr4Ty/bin/python3
+
 [[source]]
 url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
 [packages]
-scipy = "*"
+matplotlib = "*"
+ipykernel = "*"
+numpy = "*"
+pandas = "*"
+spyder-kernels = "*"
+openpyxl = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.10"
+python_version = "3.9"
