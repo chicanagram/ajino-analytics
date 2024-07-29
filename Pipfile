@@ -13,6 +13,9 @@ numpy = "*"
 pandas = "*"
 spyder-kernels = "*"
 openpyxl = "*"
+scipy = "*"
+scikit-learn = "*"
+seaborn = "*"
 
 [dev-packages]
 

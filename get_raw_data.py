@@ -134,7 +134,7 @@ rawdata_dict = {
     2: {'fname': '240710_22DX05-12_process combination_AJI-Astar_v2.xlsx', 'skiprows':[2,2,2,2,2,2], 'usecols':['B:BF', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK'], 'cqa_startcol':[8,8,8,8,8,8], },
     }
 
-dataset_num = 1
+dataset_num = 0
 dataset_info = rawdata_dict[dataset_num]
 fname = dataset_info['fname']
 skiprows_list = dataset_info['skiprows']
