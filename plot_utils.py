@@ -15,6 +15,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 data_folder = '../ajino-analytics-data/'
 figure_folder = f'{data_folder}figures/'
 
+model_cmap = {'randomforest':'r', 'plsr':'b', 'lasso':'g'}
+
 
 def convert_figidx_to_rowcolidx(figidx, ncols): 
     """
@@ -135,7 +137,11 @@ def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_d
 
 def annotate_heatmap(array_2D, ax, ndecimals=2):
     for (j,i),label in np.ndenumerate(array_2D):
-        ax.text(i,j,round(label,ndecimals),ha='center',va='center', color='0.8', fontsize=8, fontweight='bold')
+        if ndecimals==0 and ~np.isnan(label):
+            label = int(label)
+        else: 
+            label = round(label,ndecimals)
+        ax.text(i,j,label,ha='center',va='center', color='0.8', fontsize=8, fontweight='bold')
 
 
 def symlog(data):
@@ -148,7 +154,7 @@ def symlog(data):
     return data_symlog
     
     
-def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=False, row_labels=None, col_labels=None):
+def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None):
     """
     Create a heatmap from a numpy array and two lists of labels.
 
@@ -247,8 +253,12 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
              rotation_mode="anchor")
     
     # Annotate
-    if annotate:
-        annotate_heatmap(array, ax, ndecimals=3)
+    if annotate is not None:
+        if isinstance(annotate, int):
+            ndecimals = annotate
+        else:
+            ndecimals = 3
+        annotate_heatmap(array, ax, ndecimals=ndecimals)
 
     # Turn spines off and create white grid.
     for edge, spine in ax.spines.items():

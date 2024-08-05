@@ -65,5 +65,15 @@ for colbase in colnames_base:
     df_col_avg = df_merge[col_list].mean(axis=1)
     print(df_col_avg)
     df_avg[colbase] = df_col_avg.tolist()
-    
+
+# set var col as index
+df_avg = df_avg.set_index('var')
+
+# remove rows that are all zeros
+df_avg = df_avg.dropna(axis=0, how = 'all')
+
+# translate dataframe so that nutrient components are the columns, and media labels are the index
+df_avg = df_avg.transpose()
+
+# save dataframe to csv
 df_avg.to_csv(f'{data_folder}MediaComposition_avg.csv')

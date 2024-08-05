@@ -178,7 +178,7 @@ def get_order_of_element_sizes(arr, invert_importance_order=True):
     return el_orders
 
 
-def get_feature_importances(model_list, yvar, xvar_list, plot_feature_importances=True, plot_ordered=True):
+def get_feature_importances(model_list, yvar, xvar_list, plot_feature_importances=True, plot_ordered=True, normalize_feature_scoring=False):
     
     # initialize lists for recording feature coefficients and importance score
     feature_coefs = []
@@ -197,7 +197,11 @@ def get_feature_importances(model_list, yvar, xvar_list, plot_feature_importance
         feature_coef_dict.update({f'{xvar_list[k]}':coef_x_list[k] for k in range(len(xvar_list))})
         feature_coefs.append(feature_coef_dict)
         feature_importance_dict = {'model_type': model_type, 'yvar': yvar}
-        feature_importance_dict.update({f'{xvar_list[k]}':orders_x_list[k] for k in range(len(xvar_list))})
+        if normalize_feature_scoring:
+            scoring_norm_constant = len(orders_x_list)-1
+        else: 
+            scoring_norm_constant = 1
+        feature_importance_dict.update({f'{xvar_list[k]}':orders_x_list[k]/scoring_norm_constant for k in range(len(xvar_list))})
         feature_importances.append(feature_importance_dict)   
         
         if plot_feature_importances: 
@@ -224,7 +228,7 @@ def sort_list(lst):
     return lst
 
 
-def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, figtitle=None, savefig=None):
+def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, annotate=True, get_clustermap=True, figtitle=None, savefig=None):
 
     # get array data from feature dataframe
     arr = heatmap_df.to_numpy()
@@ -233,26 +237,26 @@ def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_c
     if scale_vals:
         arr_unscaled = arr.copy()
         for row_idx in range(arr_unscaled.shape[0]):
-            scalefactor = np.max(np.abs(arr_unscaled[row_idx,:]))
+            scalefactor = np.nanmax(np.abs(arr_unscaled[row_idx,:]))
             arr[row_idx,:] = arr_unscaled[row_idx,:]/scalefactor
         # replace data in heatmap
         heatmap_df = pd.DataFrame(arr, columns=xvar_list, index=yvar_list)
         
     # plot heatmap 
     fig, ax = plt.subplots(1,1, figsize=(25, arr.shape[0]/arr.shape[1]*25))
-    _, _, ax = heatmap(arr, c='viridis', ax=ax, cbar_kw={}, cbarlabel="", annotate=True, row_labels=yvar_list, col_labels=xvar_list, logscale_cmap=logscale_cmap)
+    _, _, ax = heatmap(arr, c='viridis', ax=ax, cbar_kw={}, cbarlabel="", annotate=annotate, row_labels=yvar_list, col_labels=xvar_list, logscale_cmap=logscale_cmap)
     if figtitle is not None:
         ax.set_title(figtitle, fontsize=16)
     if savefig is not None:
         fig.savefig(f'{figure_folder}{savefig}.png',  bbox_inches='tight')     
         
     # plot clustermap of heatmap
-    cl = sns.clustermap(heatmap_df, cmap="viridis", figsize=(20, 12))
-    cl.fig.suptitle(f'Cluster map of {figtitle}', fontsize=16) 
-    # plt.title(f'Cluster map of {figtitle}', fontsize=16, loc='center')
-    plt.savefig(f"{figure_folder}{savefig}_clustermap.png",  bbox_inches='tight') 
+    if get_clustermap:
+        cl = sns.clustermap(heatmap_df, cmap="viridis", figsize=(20, 12))
+        cl.fig.suptitle(f'Cluster map of {figtitle}', fontsize=16) 
+        # plt.title(f'Cluster map of {figtitle}', fontsize=16, loc='center')
+        plt.savefig(f"{figure_folder}{savefig}_clustermap.png",  bbox_inches='tight') 
     return arr
-
 
 
 
@@ -263,11 +267,15 @@ def plot_feature_importance_barplots(feature_importance_arr, yvar_list, xvar_lis
     """
     fig, ax = plt.subplots(nrows,ncols, figsize=(40,16))
     xtickpos = np.arange(len(xvar_list))+1
+    xticklabels = [str(idx) for idx in range(len(xvar_list))]
+    # if too many x variables, label only every other var
+    if len(xvar_list)>50:
+        xticklabels = [label if k%2==0 else '' for k, label in enumerate(xticklabels)]
     for i, yvar in enumerate(yvar_list):
         row_idx, col_idx = convert_figidx_to_rowcolidx(i, ncols)
         feature_importance_arr_yvar = feature_importance_arr[i, :]       
         ax[row_idx][col_idx].bar(xtickpos, feature_importance_arr_yvar)
-        ax[row_idx][col_idx].set_xticks(xtickpos, [str(idx) for idx in range(len(xvar_list))], fontsize=8)
+        ax[row_idx][col_idx].set_xticks(xtickpos, xticklabels, fontsize=8)
         ax[row_idx][col_idx].set_title(yvar, fontsize=20)
         ax[row_idx][col_idx].set_ylabel('feature importances', fontsize=16)
         
@@ -279,5 +287,56 @@ def plot_feature_importance_barplots(feature_importance_arr, yvar_list, xvar_lis
         fig.savefig(f'{figure_folder}{savefig}.png', bbox_inches='tight')
     plt.show()  
     
-    
 
+def order_features_by_importance(feature_scoring_agg_yvar, xvar_list):     
+    orders_x_list = get_order_of_element_sizes(feature_scoring_agg_yvar)
+    overall_feature_importance_yvar = {f'{xvar_list[k]}':feature_scoring_agg_yvar[k] for k in range(len(xvar_list))}
+    feature_scoring_yvar = {f'{xvar_list[k]}':orders_x_list[k] for k in range(len(xvar_list))}    
+    feature_ordering_yvar = [xvar_list[idx] for idx in np.argsort(feature_scoring_agg_yvar)][::-1]
+    return overall_feature_importance_yvar, feature_scoring_yvar, feature_ordering_yvar
+
+
+    
+def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=3, ncols=1, figsize=(27,17), barwidth=0.25, figtitle=None, savefig=None, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}):
+    fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
+    xtickpos = np.arange(len(yvar_list))+1
+    for i, yvar in enumerate(yvar_list):
+        for k, model_type in enumerate(models_to_eval_list):
+            c = model_cmap[model_type]
+            xtickoffset = -barwidth*len(models_to_eval_list)/2 + 0.5*barwidth + k*barwidth
+            model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
+            ## R2
+            ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'], width=barwidth, label=model_type, color=c)
+            ## MAE_norm (train)
+            ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm_train'], width=barwidth, label=model_type, color=c)
+            ## MAE_norm (CV)
+            ax[2].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm_cv'], width=barwidth, label=model_type, color=c)
+    
+    for k in range(nrows): 
+        ax[k].set_xticks(xtickpos, yvar_list)
+        
+    # set ylim for MAE plots
+    ymax_mae = np.max(model_metrics_df[['mae_norm_train', 'mae_norm_cv']].to_numpy())
+    ax[0].set_ylim([0.4,1])
+    ax[1].set_ylim([0,0.9])
+    ax[2].set_ylim([0,0.9])
+    ax[0].set_ylabel('R2', fontsize=16)
+    ax[1].set_ylabel('MAE, normalized (train)', fontsize=16)
+    ax[2].set_ylabel('MAE, normalized (LOOCV)', fontsize=16)
+    ymax = ax.flatten()[0].get_position().ymax
+    plt.legend(models_to_eval_list, fontsize=16)
+    if figtitle is not None:
+        plt.suptitle(figtitle, y=ymax*1.03, fontsize=24)    
+    if savefig is not None:
+        fig.savefig(savefig, bbox_inches='tight')
+    plt.show()
+
+
+def select_subset_of_X(X, xvar_list, xvar_list_ordered, f=1):
+    p = X.shape[1]
+    num_features_to_select = int(np.ceil(f*p))
+    xvar_sublist_ordered = xvar_list_ordered[:num_features_to_select]
+    xvar_idx_selected = [idx for idx, xvar in enumerate(xvar_list) if xvar in xvar_sublist_ordered]
+    xvar_sublist = [xvar_list[idx] for idx in xvar_idx_selected]
+    X_selected = X[:, xvar_idx_selected]
+    return X_selected, xvar_sublist
