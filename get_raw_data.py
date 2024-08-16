@@ -10,6 +10,7 @@ Created on Thu Jul 18 14:58:31 2024
 import pandas as pd
 import numpy as np
 import pickle
+from variables import data_folder, sampling_rawdata_dict
 
 def xlsx_to_dict(
         fpath,
@@ -56,8 +57,6 @@ def xlsx_to_dict(
     if get_inputs:
         # get inputs
         df_in = df_in.rename(columns={'feed manner (%, day)': 'feed %', 'pH central':'pH', 'feeding %': 'feed %', 'feeding day':'feed day'})
-        if 'feed day' not in df_in.columns.tolist():
-            df_in = df_in.rename(columns={df_in.columns[3]: 'feed day'})
         if 'DO' not in df_in:
             df_in['DO'] = 40
         if 'pH' not in df_in:
@@ -126,117 +125,132 @@ def append_to_datadict(d, d_in, d_out):
         d[i].update(d_out[i])
     return d
 
-#%%
-data_folder = '../ajino-analytics-data/'
-rawdata_dict = {
-    0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows':[2,2,2,2,2], 'usecols':['B:BZ', 'B:DQ', 'B:BD', 'B:BD', 'B:AY'], 'cqa_startcol':[5,5,5,5,5], },
-    1: {'fname': '240704_22DX05-12_media combination_AJI-Astar_v1.xlsx', 'skiprows':[2,2,2,2,2,2], 'usecols':['B:BH', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK'], 'cqa_startcol':[8,8,8,8,8,8], },
-    2: {'fname': '240710_22DX05-12_process combination_AJI-Astar_v2.xlsx', 'skiprows':[2,2,2,2,2,2], 'usecols':['B:BF', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK'], 'cqa_startcol':[8,8,8,8,8,8], },
-    }
-
-dataset_num = 0
-dataset_info = rawdata_dict[dataset_num]
-fname = dataset_info['fname']
-skiprows_list = dataset_info['skiprows']
-usecols_list = dataset_info['usecols']
-cqa_startcol_list = dataset_info['cqa_startcol']
-fpath = f'{data_folder}{fname}'
-
-xl = pd.ExcelFile(fpath)
-print(xl.sheet_names)
-
-# initialize dict to aggregate data
-d = {}
-var_dict_all = {}
-# ['Condition', ''Media composition']
-# ['VCD, VIA, Titer, metabolites', 'AA', 'VT', 'MT', 'Glyco', 'Nuc, Amine']
-#['volume', 'Temp', 'pH', 'DO']
-
-#%% read sheet: 'VCD, VIA, Titer, metabolites'
-sheet_name = 'VCD, VIA, Titer, metabolites'
-sheetidx = 0
-skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=True)
-d = append_to_datadict(d, d_in, d_out)
-var_dict_all.update(var_dict)
-
-#%% read sheet: 'AA'
-sheet_name = 'AA'
-sheetidx = 1
-skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-d = append_to_datadict(d, d_in, d_out)
-var_dict_all.update(var_dict)
-
-#%% read sheet: 'VT'
-sheet_name = 'VT'
-sheetidx = 2
-skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-d = append_to_datadict(d, d_in, d_out)
-var_dict_all.update(var_dict)
-
-#%% read sheet: 'MT'
-sheet_name = 'MT'
-sheetidx = 3
-skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-d = append_to_datadict(d, d_in, d_out)
-var_dict_all.update(var_dict)
-
-#%% read sheet: 'Glyco'
-sheet_name = 'Glyco'
-sheetidx = 4
-skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-d = append_to_datadict(d, d_in, d_out)
-var_dict_all.update(var_dict)
-
-#%% read sheet: 'Nuc, Amine'
-sheet_name = 'Nuc, Amine'
-sheetidx = 5
-skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-d = append_to_datadict(d, d_in, d_out)
-var_dict_all.update(var_dict)
-
-#%% add fields
-# add experiment label
-for i in list(d.keys()):
-    d_exp = d[i]
-    basal = d_exp['Basal medium'][-1]
-    feed = d_exp['Feed medium'][-1]
-    feed_amt = int(d_exp['feed %'])
-    pH = format(d_exp['pH'],'.1f')
-    DO = int(d_exp['DO'])
-    n = d_exp['n']
-    exp_label = f'{basal}-{feed}-{feed_amt}%_pH{pH}_DO{DO}'
-    d[i]['exp_label'] = exp_label
-  
-# add dataset number to dict keys
-d_orig = d.copy()
-for i in list(d_orig.keys()):
-    d = {f'{dataset_num}.{k}':v for k, v in d_orig.items()}
-
-#%% save files
-pkl_fname = f'dataset{dataset_num}.pkl'
-with open(f'{data_folder}{pkl_fname}', 'wb') as handle:
-    pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('{data_folder}{pkl_fname}', 'rb') as handle:
-#     data = pickle.load(handle)
-
-# %% combine all data
-
+#%% get excel file
 data_all = {}
 
-for dataset_num in rawdata_dict:
-    with open(f'{data_folder}dataset{dataset_num}.pkl', 'rb') as handle:
-        data = pickle.load(handle)
-    data_all.update(data)
+for dataset_num in [0, 1, 2]:
+    print('Dataset:', dataset_num)
+    dataset_info = sampling_rawdata_dict[dataset_num]
+    fname = dataset_info['fname']
+    skiprows_list = dataset_info['skiprows']
+    usecols_list = dataset_info['usecols']
+    cqa_startcol_list = dataset_info['cqa_startcol']
+    fpath = f'{data_folder}{fname}'
     
+    xl = pd.ExcelFile(fpath)
+    sheet_list = xl.sheet_names
+    
+    # initialize dict to aggregate data
+    d = {}
+    var_dict_all = {}
+    
+    # read sheet: 'VCD, VIA, Titer, metabolites'
+    sheet_name = 'VCD, VIA, Titer, metabolites'
+    sheetidx = 0
+    if sheet_name in sheet_list:
+        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=True)
+        d = append_to_datadict(d, d_in, d_out)
+        var_dict_all.update(var_dict)
+        print('Obtained VCD, VIA, Titer, metabolites data')
+    
+    # read sheet: 'AA'
+    sheet_name = 'AA'
+    sheetidx = 1
+    if sheet_name in sheet_list:
+        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
+        d = append_to_datadict(d, d_in, d_out)
+        var_dict_all.update(var_dict)
+        print('Obtained AA data')
+    
+    # read sheet: 'VT'
+    sheet_name = 'VT'
+    sheetidx = 2
+    if sheet_name in sheet_list:
+        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
+        d = append_to_datadict(d, d_in, d_out)
+        var_dict_all.update(var_dict)
+        print('Obtained VT data')
+    
+    # read sheet: 'MT'
+    sheet_name = 'MT'
+    sheetidx = 3
+    if sheet_name in sheet_list:
+        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
+        d = append_to_datadict(d, d_in, d_out)
+        var_dict_all.update(var_dict)
+        print('Obtained MT data')
+    
+    # read sheet: 'Glyco'
+    sheet_name = 'Glyco'
+    sheetidx = 4
+    if sheet_name in sheet_list:
+        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
+        d = append_to_datadict(d, d_in, d_out)
+        var_dict_all.update(var_dict)
+        print('Obtained Glyco data')
+    
+    # read sheet: 'Nuc, Amine'
+    sheet_name = 'Nuc, Amine'
+    sheetidx = 5
+    if sheet_name in sheet_list:
+        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
+        d = append_to_datadict(d, d_in, d_out)
+        var_dict_all.update(var_dict)
+        print('Obtained Nuc, Amine data')
+    else: 
+        print(f'{sheet_name} not found in xlsx file.')
+    
+    # Get volume data
+    sheet_name = 'volume'
+    sheetidx = 6
+    # get volume data from sheet
+    skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+    exp_idx = list(d.keys())
+    vol_arr = pd.read_excel(fpath, sheet_name=sheet_name, skiprows=skiprows, usecols=usecols).iloc[1:, 2:].to_numpy()
+    vol_arr_feed = vol_arr[:, [(i-1)*4+2 for i in exp_idx]]
+    vol_arr_init = vol_arr[0, [(i-1)*4+1 for i in exp_idx]]
+    vol_arr_sum_norm = (np.nansum(vol_arr_feed, axis=0)/vol_arr_init).astype(float)
+    # append to dict
+    for k in d:
+        d[k]['feed vol'] = float(vol_arr_sum_norm[k-1])
+    print('Obtained feed volume data')
+        
+    # add fields
+    # add experiment label
+    for i in list(d.keys()):
+        d_exp = d[i]
+        basal = d_exp['Basal medium'][-1]
+        feed = d_exp['Feed medium'][-1]
+        feed_amt = int(d_exp['feed %'])
+        pH = format(d_exp['pH'],'.1f')
+        DO = int(d_exp['DO'])
+        n = d_exp['n']
+        exp_label = f'{basal}-{feed}-{feed_amt}%_pH{pH}_DO{DO}'
+        d[i]['exp_label'] = exp_label
+    print('Added experimental labels')
+      
+    # add dataset number to dict keys
+    d_orig = d.copy()
+    for i in list(d_orig.keys()):
+        d = {f'{dataset_num}.{k}':v for k, v in d_orig.items()}
+
+    # save undividual dataset as pkl
+    pkl_fname = f'dataset{dataset_num}.pkl'
+    with open(f'{data_folder}{pkl_fname}', 'wb') as handle:
+        pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print('Saved individual dataset to pkl')
+
+    # append to general dict
+    data_all.update(d)
+    print('Updated general data pkl')
+
+# save all data to single pkl 
 with open(f'{data_folder}DATA.pkl', 'wb') as handle:
     pickle.dump(data_all, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-
+print('Saved overall data pkl.')

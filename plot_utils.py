@@ -11,9 +11,9 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from variables import data_folder, figure_folder
 
-data_folder = '../ajino-analytics-data/'
-figure_folder = f'{data_folder}figures/'
+
 
 model_cmap = {'randomforest':'r', 'plsr':'b', 'lasso':'g'}
 
@@ -154,7 +154,7 @@ def symlog(data):
     return data_symlog
     
     
-def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None):
+def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None, show_gridlines=True):
     """
     Create a heatmap from a numpy array and two lists of labels.
 
@@ -236,6 +236,9 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
         cbar.set_ticks(cbar_labels)
         cbar_labels_unlog = list(np.round(np.exp(np.array(cbar_labels)),2))
         cbar.set_ticklabels(cbar_labels_unlog)
+        
+    # Turn off gridlines if required
+    ax.tick_params(axis='both', which='both', length=0, gridOn=show_gridlines) 
     
     # We want to show all ticks...
     ax.set_xticks(np.arange(data.shape[1]))
@@ -264,6 +267,7 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
     for edge, spine in ax.spines.items():
         spine.set_visible(False)
 
+    # set xticks
     ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
     ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
     ax.grid(which="minor", color="w", linestyle='-', linewidth=0.5)

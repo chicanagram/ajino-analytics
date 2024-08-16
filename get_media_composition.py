@@ -9,19 +9,14 @@ Created on Tue Jul 23 15:56:08 2024
 import pandas as pd
 import numpy as np
 import pickle
+from variables import data_folder, media_rawdata_dict
 from get_raw_data import append_to_datadict, data_folder
 
 #%% read sheet: 'Media composition'
 
-rawdata_dict = {
-    0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows':1, 'usecols':'A:F', 'cqa_startcol':1, },
-    1: {'fname': '240704_22DX05-12_media combination_AJI-Astar_v1.xlsx', 'skiprows':2, 'usecols':'B:J', 'cqa_startcol':1, },
-    2: {'fname': '240710_22DX05-12_process combination_AJI-Astar_v2.xlsx', 'skiprows':2, 'usecols':'B:D', 'cqa_startcol':1, },
-    }
-
 sheet_name = 'Media composition'
 
-for dataset_num, dataset_meta in rawdata_dict.items():
+for dataset_num, dataset_meta in media_rawdata_dict.items():
     fname, skiprows, usecols, cqa_startcol = dataset_meta['fname'], dataset_meta['skiprows'], dataset_meta['usecols'], dataset_meta['cqa_startcol']
     fpath = f'{data_folder}{fname}'
     df = pd.read_excel(fpath, sheet_name=sheet_name, skiprows=skiprows, usecols=usecols)

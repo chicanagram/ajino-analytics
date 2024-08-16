@@ -13,7 +13,24 @@ def sort_list(lst):
 def dict_update(d, keyval):
     d.update(keyval)
     return d
-    
+
+# data folder
+data_folder = '../ajino-analytics-data/'
+# figure fodler
+figure_folder = f'{data_folder}figures/'
+
+sampling_rawdata_dict = {
+    0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows':[2,2,2,2,2,None,2], 'usecols':['B:CA', 'B:DQ', 'B:BD', 'B:BD', 'B:AY', None, 'B:AI'], 'cqa_startcol':[6,6,6,6,6, None,2], },
+    1: {'fname': '240704_22DX05-12_media combination_AJI-Astar_v1.xlsx', 'skiprows':[2,2,2,2,2,2,2], 'usecols':['B:BH', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK', 'B:GM'], 'cqa_startcol':[8,8,8,8,8,8,2], },
+    2: {'fname': '240710_22DX05-12_process combination_AJI-Astar_v2.xlsx', 'skiprows':[2,2,2,2,2,2,2], 'usecols':['B:BF', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK', 'B:GM'], 'cqa_startcol':[8,8,8,8,8,8,2], },
+    }
+
+media_rawdata_dict = {
+    0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows':1, 'usecols':'A:F', 'cqa_startcol':1, },
+    1: {'fname': '240704_22DX05-12_media combination_AJI-Astar_v1.xlsx', 'skiprows':2, 'usecols':'B:J', 'cqa_startcol':1, },
+    2: {'fname': '240710_22DX05-12_process combination_AJI-Astar_v2.xlsx', 'skiprows':2, 'usecols':'B:D', 'cqa_startcol':1, },
+    }
+
 
 var_dict_all = {
     'inputs': [
@@ -23,7 +40,7 @@ var_dict_all = {
         'pH',
         'feed %',
         'feed day',
-        'n'
+        'feed vol',
         ],
     'VCD, VIA, Titer, metabolites': [
         'VCD (E6 cells/mL)',
@@ -205,7 +222,8 @@ xvar_list_dict_prefilt = {
   'Zn_0',
   'DO',
   'pH',
-  'feed %'
+  'feed %',
+  'feed vol',
   ],
 1: ['Arg_basal',
  'Asn_basal',
@@ -279,7 +297,8 @@ xvar_list_dict_prefilt = {
  'Zn_feed',
  'DO',
  'pH',
- 'feed %'
+ 'feed %',
+ 'feed vol',
  ]
 }
 
@@ -331,7 +350,8 @@ xvar_list_dict = {
  'Zn_0',
  'DO',
  'pH',
- 'feed %'
+ 'feed %',
+ 'feed vol',
  ],
 
 1: ['Arg_basal',
@@ -406,8 +426,212 @@ xvar_list_dict = {
  'Zn_feed',
  'DO',
  'pH',
- 'feed %'
- ]
+ 'feed %',
+ 'feed vol',
+ ],
+}
+
+xvar_sublist_sets_bymodeltype = {
+    'Titer (mg/L)_14': {
+        'randomforest': [
+            'Cu_basal', 'Cyanocobalamin_basal', 'Fe_basal', 'His_basal', 'Mg_basal', 'Pantothenic  acid_basal', 'Trp_basal', 'Zn_basal', 'DO', 'pH', 'feed %', 'Asp_feed', 'Choline_feed', 'Lys_feed', 'Met_feed', 'P_feed', 'Phe_feed', 'Pro_feed', 'Pyridoxine_feed', 'Riboflavin_feed', 'Val_feed', 'Zn_feed'
+            ],
+        'plsr': [
+            'Asn_basal',
+            'Choline_feed',
+            'Pro_feed',
+            'Riboflavin_feed',
+            'feed %',   
+        ],
+        'lasso': [
+            'Pro_feed', 
+            'feed %', 
+            'Cyanocobalamin_basal', 
+            'Riboflavin_feed', 
+            'Pyridoxine_basal', 
+            'DO', 
+            'Asp_feed', 
+            'His_basal'            
+        ]
+        },
+        
+    'mannosylation_14': {
+        'randomforest': [
+            'Biotin_basal', 'D-glucose_basal', 'Folic acid_basal', 'Na_basal', 'Nicotinamide_basal', 'Orn_basal', 'Riboflavin_basal', 'Trp_basal', 'Asp_feed', 'Biotin_feed', 'Choline_feed', 'Leu_feed', 'Pro_feed', 'Riboflavin_feed', 'Val_feed', 'DO', 'pH', 'feed %'
+            ],
+        'plsr': [
+            'D-glucose_basal',
+            'Folic acid_basal',
+            'Riboflavin_feed',
+            'DO',
+            'feed %',
+        ],
+        'lasso': [
+            'D-glucose_basal', 
+            'Riboflavin_feed', 
+            'Nicotinamide_basal', 
+            'feed %', 
+            'DO', 
+            'pH', 
+            'Asp_feed', 
+            'Pro_feed', 
+            'Orn_basal'           
+        ]
+        },
+        
+    'fucosylation_14': {
+        'randomforest': [
+            'Folic acid_basal', 'His_basal', 'Nicotinamide_basal', 'Riboflavin_basal', 'Trp_basal', 'Choline_feed', 'Folic acid_feed', 'Na_feed', 'P_feed', 'Pro_feed', 'DO', 'pH', 'feed %'
+            ],
+        'plsr': [
+            'Nicotinamide_basal',
+            'Choline_feed',
+            'Trp_feed',
+            'DO',
+            'feed %',
+        ],
+        'lasso': [
+            'Nicotinamide_basal', 
+            'Riboflavin_feed', 
+            'feed %', 
+            'DO', 
+            'pH', 
+            'Asp_feed', 
+            'Pro_feed', 
+            'D-glucose_basal'
+        ]
+        },
+
+    'galactosylation_14': {
+        'randomforest': [
+            'Biotin_basal', 'D-glucose_basal', 'Folic acid_basal', 'Lys_basal', 'Na_basal', 'Nicotinamide_basal', 'Orn_basal', 'Riboflavin_basal', 'Trp_basal', 'Asp_feed', 'Biotin_feed', 'Choline_feed', 'Pro_feed', 'Riboflavin_feed', 'Val_feed', 'DO', 'pH', 'feed %'
+            ],
+        'plsr': [
+            'D-glucose_basal',
+            'Folic acid_basal',
+            'Riboflavin_feed',
+            'DO',
+            'feed %',
+        ],
+        'lasso': [
+            'Riboflavin_feed', 
+            'D-glucose_basal', 
+            'Nicotinamide_basal', 
+            'feed %', 
+            'DO', 
+            'pH', 
+            'Orn_basal', 
+            'Asp_feed'
+        ]
+        },
+    }
+
+xvar_sublist_sets = {
+    'Titer (mg/L)_14': {
+        0: ['Asn_basal',
+        'Choline_feed',
+        'Pro_feed',
+        'Riboflavin_feed',
+        'feed %',
+        'Nicotinamide_basal', 
+            ],
+        1: ['Cyanocobalamin_basal',
+        'Pyridoxine_basal',
+        'DO',
+        'Asp_feed',
+        'His_basal',
+        ],
+        2: ['Cu_basal',
+        'Fe_basal',
+        'Mg_basal',
+        'Pantothenic  acid_basal',
+        'Trp_basal',
+        'Zn_basal',
+        'Lys_feed',
+        'Met_feed',
+        'P_feed',
+        'Phe_feed',
+        'Pyridoxine_feed',
+        'Val_feed',
+        'Zn_feed',
+        'pH'
+        ]
+        },
+        
+    'mannosylation_14': {
+        0: ['D-glucose_basal',
+        'Folic acid_basal',
+        'Riboflavin_feed',
+        'DO',
+        'feed %',
+        'Nicotinamide_basal', 
+        ],
+        1: [
+        'pH', 
+        'Asp_feed', 
+        'Pro_feed', 
+        'Orn_basal',
+        ],
+        2: ['Biotin_basal',
+        'Na_basal',
+        'Riboflavin_basal',
+        'Trp_basal',
+        'Biotin_feed',
+        'Choline_feed',
+        'Leu_feed',
+        'Val_feed',
+        'Folic acid_basal'
+        ]
+        },
+        
+    'fucosylation_14': {
+        0: ['Nicotinamide_basal',
+        'Choline_feed',
+        'Trp_feed',
+        'DO',
+        'feed %',
+        'Riboflavin_feed', 
+        ],
+        1: [
+        'pH', 
+        'Asp_feed', 
+        'Pro_feed', 
+        'D-glucose_basal',
+        ],
+        2: ['Folic acid_basal',
+        'His_basal',
+        'Riboflavin_basal',
+        'Trp_basal',
+        'Folic acid_feed',
+        'Na_feed',
+        'P_feed',
+        ]        
+        },
+
+    'galactosylation_14': {
+        0: ['D-glucose_basal',
+        'Folic acid_basal',
+        'Riboflavin_feed',
+        'DO',
+        'feed %',
+        'Nicotinamide_basal', 
+        ],
+        1: [
+        'pH', 
+        'Orn_basal', 
+        'Asp_feed',
+        ],
+        2: ['Biotin_basal',
+        'Lys_basal',
+        'Na_basal',
+        'Riboflavin_basal',
+        'Trp_basal',
+        'Biotin_feed',
+        'Choline_feed',
+        'Val_feed',
+        ]        
+        },
+    
     }
 
 
@@ -433,6 +657,8 @@ yvar_sublist_sets = [
     ['G0_14', 'G0F_14', 'G1_14', 'G1Fa_14'],
     ['G1Fb_14', 'G2_14', 'G2F_14', 'Other_14']
     ]
+
+yvar_list_key = ['Titer (mg/L)_14', 'mannosylation_14', 'fucosylation_14', 'galactosylation_14']
 
 common_xvars_dict = {
     (0,1): ['Arg',
@@ -593,6 +819,51 @@ model_params = {
     'G2_14': [{'model_type': 'randomforest', 'n_estimators': 100, 'f':0.2}],
     'G2F_14': [{'model_type': 'randomforest', 'n_estimators': 100, 'f':0.05}],
     'Other_14': [{'model_type': 'randomforest', 'n_estimators': 100, 'f':0.1}]    
+    }
+},
+
+'X1Y0_tier12':{
+'randomforest': {
+    'Titer (mg/L)_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'mannosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'fucosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'galactosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G0_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G0F_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G1_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G1Fa_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G1Fb_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G2_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'G2F_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    'Other_14': [{'model_type': 'randomforest', 'n_estimators': 100}]    
+    },
+'plsr' : {
+    'Titer (mg/L)_14': [{'model_type': 'plsr', 'n_components':5}],
+    'mannosylation_14': [{'model_type': 'plsr', 'n_components':5}],
+    'fucosylation_14': [{'model_type': 'plsr', 'n_components':5}],
+    'galactosylation_14': [{'model_type': 'plsr', 'n_components':5}],
+    'G0_14': [{'model_type': 'plsr', 'n_components':6}],
+    'G0F_14': [{'model_type': 'plsr', 'n_components':7}],
+    'G1_14': [{'model_type': 'plsr', 'n_components':4}],
+    'G1Fa_14': [{'model_type': 'plsr', 'n_components':8}],
+    'G1Fb_14': [{'model_type': 'plsr', 'n_components':7}],
+    'G2_14': [{'model_type': 'plsr', 'n_components':7}],
+    'G2F_14': [{'model_type': 'plsr', 'n_components':8}],
+    'Other_14': [{'model_type': 'plsr', 'n_components':5}]
+    },
+'lasso': {
+    'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':20}],
+    'mannosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.1}],
+    'fucosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.1}],
+    'galactosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.1}],
+    'G0_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.01}],
+    'G0F_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}],
+    'G1_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}],
+    'G1Fa_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.1}],
+    'G1Fb_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.01}],
+    'G2_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.01}],
+    'G2F_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.01}],
+    'Other_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}]     
     }
 }
 }

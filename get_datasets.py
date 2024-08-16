@@ -9,9 +9,8 @@ Created on Mon Jul 22 21:36:39 2024
 import numpy as np
 import pandas as pd
 import pickle
-from variables import var_dict_all, overall_glyco_cqas, sort_list
+from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list,  xvar_sublist_sets, yvar_list_key
 from sklearn.preprocessing import scale
-data_folder = '../ajino-analytics-data/'
 
 def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=None, pkl_fname=None, data_folder=data_folder, shuffle_data=True, remove_cols_w_nan_thres=0.1):
     
@@ -168,7 +167,7 @@ d.to_csv(csv_fpath)
 # segmenting the variables
 media_inputs = ['Basal medium', 'Feed medium']
 media_composition_inputs = sort_list([f'{var}_basal' for var in var_dict_all['media_components']]) + sort_list([f'{var}_feed' for var in var_dict_all['media_components']])
-process_inputs = ['DO', 'pH', 'feed %']
+process_inputs = ['DO', 'pH', 'feed %'] # ['DO', 'pH', 'feed %', 'feed vol'] # ['DO', 'pH', 'feed vol'] # 
 nutrient_inputs = ['Glucose (g/L)'] + var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
 cqa_outputs = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation','G0','G0F','G1','G1Fa','G1Fb','G2','G2F','Other']
 # generate day-by-day variable names for all time-series data
@@ -203,5 +202,82 @@ for Y_featureset_idx in [0]:
         print('X_featureset_idx:', X_featureset_idx, ';  Y_featureset_idx:', Y_featureset_idx)
         XY_fname = f'X{X_featureset_idx}Y{Y_featureset_idx}'
         XYarr_dict, XY_df = get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=f'{XY_fname}.csv', pkl_fname=f'{XY_fname}.pkl', shuffle_data=True, remove_cols_w_nan_thres=0.1)
+        
+#%% Visualize cross correlation heatmaps
+
+def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx): 
+    import matplotlib.pyplot as plt
+    from plot_utils import heatmap
+    
+    # get data
+    dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+    Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
+    print(f'X dataset size: n={Xscaled.shape[0]}, p={Xscaled.shape[1]}')
+    
+    # concatenate X and Y (key) variables
+    XYarr = np.concatenate((X,Y[:,:4]), axis=1)
+    XYarr = pd.DataFrame(XYarr, columns=xvar_list+yvar_list[:4])
+    
+    # calculate correlation matrix
+    corr_mat = XYarr.corr()
+    col_labels = corr_mat.columns.tolist()
+    row_labels = list(corr_mat.index)
+    corr_mat.round(3).to_csv(f'{data_folder}{dataset_name}_correlation_matrix.csv')
+    
+    # plot correlation matrix
+    fig, ax = plt.subplots(1,1, figsize=(20,20))
+    heatmap(corr_mat.to_numpy(), datamin=-1, datamax=1, logscale_cmap=False, annotate=None, row_labels=row_labels, col_labels=col_labels)
+    fig.savefig(f'{figure_folder}{dataset_name}_correlation_matrix.png', bbox_inches='tight')
+    
+    return corr_mat
+
+featureset_list = [(1,0)] # [(0,0), (1,0)]
+
+# get relevant dataset with chosen features
+for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
+    corr_mat = get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx)
+
+#%% plot correlation heatmap for subset of features
+
+import matplotlib.pyplot as plt
+from plot_utils import heatmap
+import seaborn as sns
+
+# get data
+dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
+print(f'X dataset size: n={Xscaled.shape[0]}, p={Xscaled.shape[1]}')
+
+# get feature subset
+subset_suffix = '_tier01'
+xvar_subset_all = []
+for yvar in yvar_list_key:
+    xvar_subset_all += xvar_sublist_sets[yvar][0]
+    xvar_subset_all += xvar_sublist_sets[yvar][1]
+xvar_subset_all = sort_list(list(set(xvar_subset_all)))
+print(len(xvar_subset_all), xvar_subset_all)
+
+idx_selected = [idx for idx, xvar in enumerate(xvar_list) if xvar in xvar_subset_all]
+X_selected = X[:,np.array(idx_selected)]
+
+# concatenate X and Y (key) variables
+XYarr = np.concatenate((X_selected,Y[:,:4]), axis=1)
+XYarr = pd.DataFrame(XYarr, columns=xvar_subset_all+yvar_list[:4])
+
+# calculate correlation matrix
+corr_mat = XYarr.corr()
+col_labels = corr_mat.columns.tolist()
+row_labels = list(corr_mat.index)
+corr_mat.round(3).to_csv(f'{data_folder}{dataset_name}_correlation_matrix.csv')
+
+# plot correlation matrix
+fig, ax = plt.subplots(1,1, figsize=(8,8))
+heatmap(corr_mat.to_numpy(), datamin=-1, datamax=1, logscale_cmap=False, annotate=None, row_labels=row_labels, col_labels=col_labels)
+fig.savefig(f'{figure_folder}{dataset_name}_correlation_matrix{subset_suffix}.png', bbox_inches='tight')
 
 
+# get clustermap
+cl = sns.clustermap(corr_mat, cmap="viridis", figsize=(12,12))
+cl.fig.suptitle(f'Cluster map of selected features from {dataset_name}', fontsize=16) 
+# plt.title(f'Cluster map of {figtitle}', fontsize=16, loc='center')
+plt.savefig(f"{figure_folder}{dataset_name}_correlation_matrix{subset_suffix}_clustermap.png",  bbox_inches='tight') 

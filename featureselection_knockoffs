@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Aug 12 11:34:14 2024
+
+@author: charmainechia
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import knockpy
+from knockpy import KnockoffFilter
+import warnings
+from variables import model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key
+from plot_utils import figure_folder, model_cmap, convert_figidx_to_rowcolidx
+from get_datasets import data_folder, get_XYdata_for_featureset
+
+
+featureset_list = [(1,0)]
+sample_random_data = False
+
+for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
+    
+    if sample_random_data:
+        # Create a random covariance matrix for X
+        np.random.seed(123)
+        n = 100 # number of data points
+        p = 73  # number of features
+        Sigma = knockpy.dgp.AR1(p=p, rho=0.5) # Stationary AR1 process with correlation 0.5
+        Xscaled = np.random.multivariate_normal(mean=np.zeros(p), cov=Sigma, size=(n,))
+        print(f'Random Data X.shape: ({n},{p})')
+    else:
+        # get real data
+        dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+        Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
+        n = Xscaled.shape[0]
+        p = Xscaled.shape[1]
+        print(f'Real Data X.shape: ({n},{p})')
+    
+    for i, yvar in enumerate(yvar_list_key): 
+        
+        if sample_random_data:
+            # Create random sparse coefficients and determine y
+            beta = knockpy.dgp.create_sparse_coefficients(p=p, sparsity=0.2)
+            y = np.dot(Xscaled, beta) + np.random.randn(n)
+        else: 
+            print(yvar)
+            y = Y[:,i]
+        
+        # instantiate knockoff filter class
+        kfilter = KnockoffFilter(
+            ksampler='gaussian',
+            fstat='lasso',
+        )
+        
+        # run knockoff filter
+        rejections = kfilter.forward(
+            X=Xscaled, 
+            y=y, 
+            fdr=0.1, 
+            shrinkage="ledoitwolf"
+            )
+        
+        print(f'# of rejections: {int(np.sum(rejections))} out of {rejections.shape[0]}')
+        
+        if sample_random_data:
+        # Check the number of discoveries we made
+            power = np.dot(rejections, beta != 0) / (beta != 0).sum()
+            fdp = np.around(100*np.dot(rejections, beta == 0) / rejections.sum(), 2)
+            print(f"The knockoff filter has discovered {100*power}% of the non-nulls with a FDP of {fdp}%")                 
+

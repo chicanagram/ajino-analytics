@@ -16,6 +16,7 @@ openpyxl = "*"
 scipy = "*"
 scikit-learn = "*"
 seaborn = "*"
+knockpy = "*"
 
 [dev-packages]
 

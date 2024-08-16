@@ -7,8 +7,9 @@ Created on Wed Jul 24 21:02:36 2024
 """
 import numpy as np
 import pandas as pd
+import pickle
 import matplotlib.pyplot as plt
-from variables import model_params, dict_update, yvar_sublist_sets, sort_list
+from variables import model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key, xvar_sublist_sets, xvar_sublist_sets_bymodeltype
 from model_utils import fit_model_with_cv, get_feature_importances, plot_feature_importance_heatmap, plot_feature_importance_barplots, plot_model_metrics, select_subset_of_X, order_features_by_importance
 from plot_utils import figure_folder, model_cmap, convert_figidx_to_rowcolidx
 from get_datasets import data_folder, get_XYdata_for_featureset
@@ -16,7 +17,7 @@ from get_datasets import data_folder, get_XYdata_for_featureset
 
 #%% Evaluate different feature sets and model parameters 
 scoring = 'mae'
-featureset_list = [(1,0)]#[(0,0), (1,0)]
+featureset_list = [(1,0), (0,0)] # 
 model_params_to_eval = [
     {'model_type': 'randomforest', 'params_to_eval': ('n_estimators', [20,40,60,80,100,120,140,160,180])},
     {'model_type': 'plsr', 'params_to_eval': ('n_components',[2,3,4,5,6,7,8,9,10,11,12,14])},
@@ -51,10 +52,10 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
         
     # save model metrics for current dataset
     modelparam_metrics_df = pd.DataFrame(modelparam_metrics_df)
-    modelparam_metrics_df = modelparam_metrics_df[['model_type','yvar','param_name', 'param_val', 'r2','mae_norm_train', 'mae_norm_cv','mae_train','mae_cv']]
+    modelparam_metrics_df = modelparam_metrics_df[['model_type','yvar','param_name', 'param_val', 'r2', 'r2_cv', 'mae_norm_train', 'mae_norm_cv','mae_train','mae_cv']]
     modelparam_metrics_df.to_csv(f'{data_folder}modelmetrics_vs_params_{dataset_name}.csv')
 
-    # plot model metric for various parameters for current dataset
+    # plot model metric for various parameters for each dataset
     for k, yvar_sublist in enumerate(yvar_sublist_sets):
         print(yvar_sublist)
         for model_type in ['randomforest', 'plsr', 'lasso']: 
@@ -66,9 +67,10 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 param_name = str(metrics_filt.iloc[0]['param_name'])
                 # plot R2, MAE (CV), MAE (test) for all parameter values
                 ax[0][i].plot(metrics_filt['param_val'], metrics_filt['r2'], marker='*')
+                ax[0][i].plot(metrics_filt['param_val'], metrics_filt['r2_cv'], marker='X')
                 ax[0][i].plot(metrics_filt['param_val'], metrics_filt[f'{scoring}_norm_train'], marker='o')
                 ax[0][i].plot(metrics_filt['param_val'], metrics_filt[f'{scoring}_norm_cv'], marker='s')
-                ax[0][i].legend(['r2', f'{scoring}_train', f'{scoring}_cv'])
+                ax[0][i].legend(['r2', 'r2_cv', f'{scoring}_train', f'{scoring}_cv'])
                 ax[0][i].set_ylabel('model metrics', fontsize=12)
                 ax[0][i].set_xlabel(param_name, fontsize=12)
                 ax[0][i].set_title(yvar, fontsize=14)
@@ -100,8 +102,8 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
 
 #%% Evaluate individual model at a time and get metrics, and feature coefficients / importances 
 
-featureset_list = [(0,0), (1,0)]
-models_to_eval_list = ['randomforest','plsr', 'lasso'] # 
+featureset_list =  [(1,0)] # [(1,0), (0,0)]
+models_to_eval_list = ['randomforest','plsr', 'lasso'] # ['randomforest'] # 
 subset_suffix = ''
 f = 1
  
@@ -110,11 +112,14 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     # get data
     dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
     Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
+    print(f'X dataset size: n={Xscaled.shape[0]}, p={Xscaled.shape[1]}')
+    
     # initialize variables for storing results
     model_metrics_df = []
     feature_importance_df = []
     feature_coef_df = []
     ypred_bymodel = {model_type: np.empty_like(Y) for model_type in models_to_eval_list}
+    ypred_cv_bymodel = {model_type: np.empty_like(Y) for model_type in models_to_eval_list}
     
     # iterate through model types 
     for model_type in models_to_eval_list: 
@@ -135,6 +140,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             feature_coef_df += feature_coefs
             model_metrics_df.append(metrics)
             ypred_bymodel[model_type][:, i] = model_list[0]['ypred']
+            ypred_cv_bymodel[model_type][:, i] = model_list[0]['ypred_cv']
         
         # get feature importances for each model
         feature_importance_df_MODEL = pd.DataFrame(feature_importance_df)
@@ -144,17 +150,21 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
         # plot feature importance heatmaps
         arr_importance = plot_feature_importance_heatmap(feature_importance_df_MODEL.set_index('yvar').iloc[:,1:], xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, figtitle=f'Feature importances ({model_type})', savefig=f'feature_importance_{model_type}_{dataset_name}{subset_suffix}')
         arr_coef = plot_feature_importance_heatmap(feature_coef_df_MODEL.set_index('yvar').iloc[:,1:], xvar_list, yvar_list, logscale_cmap=False, scale_vals=True, figtitle=f'Feature coefficients, normalized ({model_type})', savefig=f'feature_coef_{model_type}_{dataset_name}{subset_suffix}')
-        arr_coef_importance_product = arr_importance*np.abs(arr_coef)
-        # get feature importance barplots
-        if model_type=='randomforest':
-            plot_feature_importance_barplots(arr_coef, yvar_list, xvar_list, label_xvar_by_indices=True, ncols=4, nrows=3, savefig=f'feature_importance_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature importances for all y variables')
-        else:     
-            plot_feature_importance_barplots(arr_coef_importance_product, yvar_list, xvar_list, label_xvar_by_indices=True, ncols=4, nrows=3, savefig=f'feature_importance_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature importances for all y variables')
+        arr_prominence = arr_importance*np.abs(arr_coef)
+        # get feature prominence barplots    
+        plot_feature_importance_barplots(arr_prominence, yvar_list, xvar_list, order_by_feature_importance=False, label_xvar_by_indices=True, ncols=4, nrows=3, c=model_cmap[model_type], savefig=f'feature_prominence_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature prominences for all y variables')
             
         # order features by importance
         for i, yvar in enumerate(yvar_list):   
-            feature_scoring_yvar = arr_coef_importance_product[i,:]
-            _, _, feature_ordering_yvar = order_features_by_importance(feature_scoring_yvar, xvar_list)
+            feature_scoring_yvar = arr_prominence[i,:]
+            if model_type=='lasso':
+                idx_to_keep = [idx for idx, scoring in enumerate(feature_scoring_yvar) if scoring != 0]
+                feature_scoring_yvar_toorder = feature_scoring_yvar[np.array(idx_to_keep)]
+                xvar_list_toorder = [xvar_list[idx] for idx in idx_to_keep]
+            else: 
+                feature_scoring_yvar_toorder = feature_scoring_yvar
+                xvar_list_toorder = xvar_list
+            _, _,feature_ordering_yvar = order_features_by_importance(feature_scoring_yvar_toorder, xvar_list_toorder)
             feature_order_txt_yvar = f'[{yvar}], {", ".join(str(e) for e in feature_ordering_yvar)}'
             feature_order_txt += [feature_order_txt_yvar]
             print(feature_order_txt_yvar, '\n')
@@ -176,7 +186,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     # Plot model metrics and predictions
     figtitle = 'Metrics for various models evaluated on all Y variables'
     savefig = f'{figure_folder}modelmetrics_allselectedmodels_allYvar_{dataset_name}{subset_suffix}.png'
-    plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=3, ncols=1, figsize=(27,17), barwidth=0.25, figtitle=figtitle, savefig=savefig, model_cmap=model_cmap)
+    plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=figtitle, savefig=savefig, model_cmap=model_cmap)
     
     # generate scatter plots of ypred vs y
     for k, yvar_sublist in enumerate(yvar_sublist_sets):
@@ -190,14 +200,18 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             for j, model_type in enumerate(models_to_eval_list): 
                 c = model_cmap[model_type]
                 ypred = ypred_bymodel[model_type][:,yvar_idx]
-                ax[j][i].scatter(y, ypred, c=c)
+                ypred_cv = ypred_cv_bymodel[model_type][:,yvar_idx]
+                ax[j][i].scatter(y, ypred, c=c, alpha=0.5, marker='*')
+                ax[j][i].scatter(y, ypred_cv, c=c, alpha=1, marker='o', s=16)
                 ax[j][i].set_title(f'{model_type} <> {yvar}', fontsize=16)
                 ax[j][i].set_ylabel(f'{yvar} (predicted)', fontsize=12)
                 ax[j][i].set_xlabel(f'{yvar} (actual)', fontsize=12)          
                 (xmin, xmax) = ax[j][i].get_xlim()
                 (ymin, ymax) = ax[j][i].get_ylim()
                 r2 = float(model_metrics_df[(model_metrics_df.model_type==model_type) & (model_metrics_df.yvar==yvar)].iloc[0].r2)
-                ax[j][i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.9, f'R2: {r2}', fontsize=14)
+                r2_cv = float(model_metrics_df[(model_metrics_df.model_type==model_type) & (model_metrics_df.yvar==yvar)].iloc[0].r2_cv)
+                ax[j][i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2} \nR2 (CV): {r2_cv}', fontsize=14)
+                ax[j][i].legend(['train', 'CV'], loc='lower right')
                 
         ymax = ax.flatten()[0].get_position().ymax
         plt.suptitle(f'Model Predicted vs. Actual values for various Y variables\n{yvar_sublist}', y=ymax*1.08, fontsize=24)    
@@ -307,10 +321,12 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             plt.show()                           
 
 #%% Evaluate model performance for SELECTED feature subset and model size
+
 featureset_list = [(1,0)] # [(0,0)] # 
-subset_suffix_list = ['_subset1'] # ['_subset2']# ''
-models_to_eval_list = ['randomforest'] # 
-  
+subset_suffix_list = ['_tier12'] # ['_subset1'] # ['_subset2']# ''
+models_to_eval_list = ['randomforest', 'plsr', 'lasso'] # 
+select_featuresubset_from_topfraction_or_curatedlist = 1 # 0: topfraction, 1: curated list
+plot_feature_importance_heatmaps = False
 
 # get relevant dataset with chosen features
 for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, subset_suffix_list): 
@@ -318,13 +334,15 @@ for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, 
     dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}' 
     Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
     # get top feature ordering
-    overall_ordered_features = pd.read_csv(f'{data_folder}model_features_ordered_AGGREGATED_{dataset_name}.csv', index_col=0)
+    if select_featuresubset_from_topfraction_or_curatedlist==0:
+        overall_ordered_features = pd.read_csv(f'{data_folder}model_features_ordered_AGGREGATED_{dataset_name}.csv', index_col=0)
     
     # initialize variables for storing results
     model_metrics_df = []
     feature_importance_df = []
     feature_coef_df = []
     ypred_bymodel = {model_type: np.empty_like(Y) for model_type in models_to_eval_list}
+    ypred_cv_bymodel = {model_type: np.empty_like(Y) for model_type in models_to_eval_list}
 
     # iterate through model types 
     for model_type in models_to_eval_list: 
@@ -332,20 +350,38 @@ for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, 
         feature_order_txt = ['yvar']
         
         # iterate through yvar
-        for i, yvar in enumerate(yvar_list):  
-            f = model_params[dataset_name+subset_suffix][model_type][yvar][0]['f']
-            print('Fraction of top features to select:', f)
-            xvar_list_ordered = overall_ordered_features.iloc[i, :].tolist()
-            # xvar_list_ordered = xvar_list_ordered[::-1] # invert sequence of xvar_list_ordered to see how this affects model performance
-            Xscaled_selected, xvar_list_selected = select_subset_of_X(Xscaled, xvar_list, xvar_list_ordered, f)
-            print('Dataset shape:', Xscaled_selected.shape)
-            model_list = model_params[dataset_name+subset_suffix][model_type][yvar]
+        for i, yvar in enumerate(yvar_list_key):  
+            
+            # get y data
             y = Y[:,i]
+            
+            # get feature subset --> X dataset
+            if select_featuresubset_from_topfraction_or_curatedlist==0:
+                f = model_params[dataset_name+subset_suffix][model_type][yvar][0]['f']
+                xvar_list_ordered = overall_ordered_features.iloc[i, :].tolist()
+                Xscaled_selected, xvar_list_selected = select_subset_of_X(Xscaled, xvar_list, xvar_list_ordered, f)
+                
+            elif select_featuresubset_from_topfraction_or_curatedlist==1:
+                # xvar_list_selected
+                xvar_list_selected = xvar_sublist_sets_bymodeltype[yvar][model_type]
+                # Xscaled_selected
+                idx_selected = [idx for idx, xvar in enumerate(xvar_list) if xvar in xvar_list_selected]
+                Xscaled_selected = Xscaled[:,np.array(idx_selected)]
+                # f
+                f = round(len(xvar_list_selected)/len(xvar_list), 2)
+                
+            print('Fraction of features selected:', f)
+            print('Dataset shape:', Xscaled_selected.shape)
+                
+            # get model parameters
+            model_list = model_params[dataset_name+subset_suffix][model_type][yvar]
+            # fit model
             model_list, metrics = fit_model_with_cv(Xscaled_selected, y, yvar, model_list, plot_predictions=False)
             # update metrics dict
             if model_type=='randomforest':
                 param_name = 'n_estimators'
                 metrics.update({'param_name': param_name, 'param_val': model_list[0][param_name], 'f':f, 'xvar_list': ', '.join(str(e) for e in xvar_list_selected)})
+            
             # get feature importance and split into COEF and ORDER dicts
             feature_coefs, feature_importances = get_feature_importances(model_list, yvar, xvar_list_selected, plot_feature_importances=False, normalize_feature_scoring=True)
             # update aggregating dicts
@@ -353,6 +389,7 @@ for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, 
             feature_coef_df += feature_coefs
             model_metrics_df.append(metrics)
             ypred_bymodel[model_type][:, i] = model_list[0]['ypred']
+            ypred_cv_bymodel[model_type][:, i] = model_list[0]['ypred_cv']
         
         # get feature importances for each model
         feature_importance_df_MODEL = pd.DataFrame(feature_importance_df)
@@ -362,15 +399,18 @@ for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, 
         feature_coef_df_MODEL = pd.DataFrame(feature_coef_df)
         feature_coef_df_MODEL = feature_coef_df_MODEL[cols_feature_df]
         feature_coef_df_MODEL = feature_coef_df_MODEL[feature_coef_df_MODEL['model_type']==model_type]
+        
         # plot feature importance heatmaps
-        arr_importance = plot_feature_importance_heatmap(feature_importance_df_MODEL.set_index('yvar').iloc[:,1:], cols_feature_df[2:], yvar_list, logscale_cmap=False, scale_vals=False, annotate=False, get_clustermap=False, figtitle=f'Feature importances ({model_type})', savefig=f'feature_importance_{model_type}_{dataset_name}{subset_suffix}')
-        arr_coef = plot_feature_importance_heatmap(feature_coef_df_MODEL.set_index('yvar').iloc[:,1:], cols_feature_df[2:], yvar_list, logscale_cmap=False, scale_vals=True, annotate=False, get_clustermap=False, figtitle=f'Feature coefficients, normalized ({model_type})', savefig=f'feature_coef_{model_type}_{dataset_name}{subset_suffix}')
-        arr_coef_importance_product = arr_importance*np.abs(arr_coef)
-        # get feature importance barplots
-        if model_type=='randomforest':
-            plot_feature_importance_barplots(arr_coef, yvar_list, cols_feature_df[2:], label_xvar_by_indices=True, ncols=4, nrows=3, savefig=f'feature_importance_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature importances for all y variables')
-        else:
-            plot_feature_importance_barplots(arr_coef_importance_product, yvar_list, cols_feature_df[2:], label_xvar_by_indices=True, ncols=4, nrows=3, savefig=f'feature_importance_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature importances for all y variables')
+        if plot_feature_importance_heatmaps:
+            arr_importance = plot_feature_importance_heatmap(feature_importance_df_MODEL.set_index('yvar').iloc[:,1:], cols_feature_df[2:], yvar_list, logscale_cmap=False, scale_vals=False, annotate=False, get_clustermap=False, figtitle=f'Feature importances ({model_type})', savefig=f'feature_importance_{model_type}_{dataset_name}{subset_suffix}')
+            arr_coef = plot_feature_importance_heatmap(feature_coef_df_MODEL.set_index('yvar').iloc[:,1:], cols_feature_df[2:], yvar_list, logscale_cmap=False, scale_vals=True, annotate=False, get_clustermap=False, figtitle=f'Feature coefficients, normalized ({model_type})', savefig=f'feature_coef_{model_type}_{dataset_name}{subset_suffix}')
+            arr_coef_importance_product = arr_importance*np.abs(arr_coef)
+        
+            # get feature importance barplots
+            if model_type=='randomforest':
+                plot_feature_importance_barplots(arr_coef, yvar_list, cols_feature_df[2:], label_xvar_by_indices=True, ncols=4, nrows=3, savefig=f'feature_importance_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature importances for all y variables')
+            else:
+                plot_feature_importance_barplots(arr_coef_importance_product, yvar_list, cols_feature_df[2:], label_xvar_by_indices=True, ncols=4, nrows=3, savefig=f'feature_importance_barplots_{model_type}_{dataset_name}{subset_suffix}', figtitle=f'[{model_type}] feature importances for all y variables')
         
         # order features by importance
         for i, yvar in enumerate(yvar_list):
@@ -398,34 +438,48 @@ for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, 
     # aggregate all feature coefficients and save CSV
     feature_coef_df = pd.DataFrame(feature_coef_df)
     feature_coef_df = feature_coef_df.sort_values(by=['yvar','model_type']).reset_index(drop=True)
-    feature_coef_df.to_csv(f'{data_folder}model_feature_coef_{dataset_name}{subset_suffix}.csv')
-
+    feature_coef_df.to_csv(f'{data_folder}model_feature_coef_{dataset_name}{subset_suffix}.csv')      
+                
     # generate scatter plots of ypred vs y
-    for model_type in models_to_eval_list: 
-        nrows, ncols = 3, 4
-        fig, ax = plt.subplots(nrows, ncols, figsize=(27,18))
-        for i, yvar in enumerate(yvar_list): 
-            y = Y[:,i]
-            row_idx, col_idx = convert_figidx_to_rowcolidx(i, ncols)
-            c = model_cmap[model_type]
-            ypred = ypred_bymodel[model_type][:,i]
-            ax[row_idx][col_idx].scatter(y, ypred, c=c)
-            ax[row_idx][col_idx].set_title(f'{model_type} <> {yvar}', fontsize=16)
-            ax[row_idx][col_idx].set_ylabel(f'{yvar} (predicted)', fontsize=12)
-            ax[row_idx][col_idx].set_xlabel(f'{yvar} (actual)', fontsize=12)          
-            (xmin, xmax) = ax[row_idx][col_idx].get_xlim()
-            (ymin, ymax) = ax[row_idx][col_idx].get_ylim()
-            r2 = float(model_metrics_df[(model_metrics_df.model_type==model_type) & (model_metrics_df.yvar==yvar)].iloc[0].r2)
-            ax[row_idx][col_idx].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.9, f'R2: {r2}', fontsize=14)
+    for k, yvar_sublist in enumerate(yvar_sublist_sets[:1]):
+    
+        # iterate through yvar in sublist
+        fig, ax = plt.subplots(3,4, figsize=(27,18))
+        for i, yvar in enumerate(yvar_sublist): 
+            yvar_idx = k*len(yvar_sublist)+i
+            y = Y[:,yvar_idx]
+    
+            for j, model_type in enumerate(models_to_eval_list): 
+                c = model_cmap[model_type]
+                ypred = ypred_bymodel[model_type][:,yvar_idx]
+                ypred_cv = ypred_cv_bymodel[model_type][:,yvar_idx]
+                ax[j][i].scatter(y, ypred, c=c, alpha=0.5, marker='*')
+                ax[j][i].scatter(y, ypred_cv, c=c, alpha=1, marker='o', s=16)
+                ax[j][i].set_title(f'{model_type} <> {yvar}', fontsize=16)
+                ax[j][i].set_ylabel(f'{yvar} (predicted)', fontsize=12)
+                ax[j][i].set_xlabel(f'{yvar} (actual)', fontsize=12)          
+                (xmin, xmax) = ax[j][i].get_xlim()
+                (ymin, ymax) = ax[j][i].get_ylim()
+                r2 = float(model_metrics_df[(model_metrics_df.model_type==model_type) & (model_metrics_df.yvar==yvar)].iloc[0].r2)
+                r2_cv = float(model_metrics_df[(model_metrics_df.model_type==model_type) & (model_metrics_df.yvar==yvar)].iloc[0].r2_cv)
+                ax[j][i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2} \nR2 (CV): {r2_cv}', fontsize=14)
+                ax[j][i].legend(['train', 'CV'], loc='lower right')
+                
         ymax = ax.flatten()[0].get_position().ymax
-        plt.suptitle('Model Predicted vs. Actual values for various Y variables', y=ymax*1.08, fontsize=24)    
-        fig.savefig(f'{figure_folder}modelpredictions_scatterplots_{dataset_name}{subset_suffix}_{model_type}.png', bbox_inches='tight')
-        plt.show()          
+        plt.suptitle(f'Model Predicted vs. Actual values for various Y variables\n{yvar_sublist}', y=ymax*1.08, fontsize=24)    
+        fig.savefig(f'{figure_folder}modelpredictions_scatterplots_{dataset_name}{subset_suffix}_{k}.png', bbox_inches='tight')
+        plt.show()
+
+#%% pickle model dict
+
+with open(f'{data_folder}models_and_params.pkl', 'wb') as f:
+    pickle.dump(model_params, f)
+    
 
 #%% Compare model performance for feature SUBSET to FULL featureset
-dataset_name = 'X0Y0' # 'X1Y0'
+dataset_name = 'X1Y0' # 'X0Y0' # 
 model_type = 'randomforest'
-subset_suffix = '_subset2' # '_subset1' #
+subset_suffix = '_tier12' # '_subset2' # '_subset1' #
 # get model metric data
 model_metrics_df = pd.read_csv(f'{data_folder}model_metrics_{dataset_name}.csv', index_col=0)
 model_metrics_df_featuresubset = pd.read_csv(f'{data_folder}model_metrics_{dataset_name}{subset_suffix}.csv', index_col=0)
@@ -439,8 +493,8 @@ figtitle = 'Metrics for various models evaluated on all Y variables'
 savefig = f'{figure_folder}modelmetrics_allselectedmodels_allYvar_{dataset_name}{subset_suffix}.png'
 
 fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
-xtickpos = np.arange(len(yvar_list))+1
-for i, yvar in enumerate(yvar_list):
+xtickpos = np.arange(len(yvar_list_key))+1
+for i, yvar in enumerate(yvar_list_key):
     c = model_cmap[model_type]
     model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
     model_metrics_df_featuresubset_filt = model_metrics_df_featuresubset[(model_metrics_df_featuresubset.yvar==yvar) & (model_metrics_df_featuresubset.model_type==model_type)].iloc[0].to_dict()
@@ -474,26 +528,4 @@ if figtitle is not None:
 if savefig is not None:
     fig.savefig(savefig, bbox_inches='tight')
 plt.show()
-    
-
-#%% Ensemble: randomforest + plsr
-ensemble_params = {
-    0: {yvar: [
-        dict_update(model_params['randomforest'][yvar][0], {'w':0.7}), 
-        dict_update(model_params['plsr'][yvar][0], {'w':0.15}), 
-        dict_update(model_params['lasso'][yvar][0], {'w':0.15})
-        ] for yvar in yvar_list}
-    }
-
-
-print('Ensemble')
-ensembles_to_eval_list = [0] 
-for ensembles_to_eval in ensembles_to_eval_list: 
-    print([m['model_type'] for m in ensemble_params[ensembles_to_eval][yvar_list[0]]])
-    for i, yvar in enumerate(yvar_list): 
-        model_list = ensemble_params[ensembles_to_eval][yvar]
-        y = Y[:,i]
-        model_list, metrics = fit_model_with_cv(Xscaled,y, yvar, model_list, plot_predictions=True)
-        print()
-
 
