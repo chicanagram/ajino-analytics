@@ -68,11 +68,11 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
     if pkl_fname is not None:
         with open(f'{data_folder}{pkl_fname}', 'wb') as f:
             pickle.dump(XYarr_dict, f)
-            
+          
     return XYarr_dict, XY_df
 
-def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder):
-    with open(f'{data_folder}X{X_featureset_idx}Y{Y_featureset_idx}.pkl', 'rb') as f:
+def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix='', data_folder=data_folder):
+    with open(f'{data_folder}X{X_featureset_idx}Y{Y_featureset_idx}{dataset_suffix}.pkl', 'rb') as f:
         XYarr_dict = pickle.load(f)
     Y = XYarr_dict['Y']       
     X = XYarr_dict['X']
@@ -83,8 +83,10 @@ def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=da
 
 
 # open pickle file for main dataset
-dataset_name = 'DATA_avg'
-pkl_fname = f'{dataset_name}.pkl'
+dataset_name = 'DATA'
+# suffix = '' 
+suffix = '_avg'
+pkl_fname = f'{dataset_name}{suffix}.pkl'
 with open(f'{data_folder}{pkl_fname}', 'rb') as handle:
     datadict = pickle.load(handle)
     
@@ -94,6 +96,7 @@ media_df = pd.read_csv(f'{data_folder}{mediacomposition_fname}', index_col=0)
 
 #%% GET FULL DATASET    
 # initialize dataframe
+avg_media_composition_vals = False
 cols = [
         ['exp_label'] + var_dict_all['inputs'],
         [f'{var}_basal' for var in var_dict_all['media_components']],
@@ -111,6 +114,7 @@ n = len(list(datadict.keys()))
 arr = np.zeros((n, len(cols)))
 arr[:] = None
 d = pd.DataFrame(arr, columns=cols)
+d['exp_label'] = d['exp_label'].astype(str)
 
 # update dataframe contents from main dataset
 for i, exp_label in enumerate(list(datadict.keys())): 
@@ -142,16 +146,28 @@ for var, glyco_list in overall_glyco_cqas.items():
 
 
 # add columns for Basal and Feed media composition
-for i in range(len(d)):
-    basal = d.loc[i,'exp_label']
-    basal = d.loc[i,'Basal medium']
-    basal_composition = media_df.loc[basal, :].to_dict()
-    for k, v in basal_composition.items():
-        d.loc[i,f'{k}_basal'] = v
-    feed = d.loc[i,'Feed medium']
-    feed_composition = media_df.loc[feed, :].to_dict()
-    for k, v in feed_composition.items():
-        d.loc[i,f'{k}_feed'] = v
+if avg_media_composition_vals:
+    # update dataframe from averaged media composition csv
+    for i in range(len(d)):
+        basal = d.loc[i,'exp_label']
+        basal = d.loc[i,'Basal medium']
+        basal_composition = media_df.loc[basal, :].to_dict()
+        for k, v in basal_composition.items():
+            d.loc[i,f'{k}_basal'] = v
+        feed = d.loc[i,'Feed medium']
+        feed_composition = media_df.loc[feed, :].to_dict()
+        for k, v in feed_composition.items():
+            d.loc[i,f'{k}_feed'] = v
+else: 
+    # update dataframe contents from main dataset
+    for i, exp_label in enumerate(list(datadict.keys())): 
+        print(i, end=' ')
+        data_exp = datadict[exp_label]
+        d.loc[i, 'exp_label'] = exp_label
+        # find all k, v pairs where k ends with '_basal' or '_feed'
+        for k, v in data_exp.items(): 
+            if (k.find('_basal')>-1 or k.find('_feed')>-1) and k in cols:
+                d.loc[i, k] = v
 
 # remove columns that are all zeros
 d = d.loc[:,(d!= 0).any(axis=0)]
@@ -167,7 +183,7 @@ d.to_csv(csv_fpath)
 # segmenting the variables
 media_inputs = ['Basal medium', 'Feed medium']
 media_composition_inputs = sort_list([f'{var}_basal' for var in var_dict_all['media_components']]) + sort_list([f'{var}_feed' for var in var_dict_all['media_components']])
-process_inputs = ['DO', 'pH', 'feed %'] # ['DO', 'pH', 'feed %', 'feed vol'] # ['DO', 'pH', 'feed vol'] # 
+process_inputs =  ['DO', 'pH', 'feed %', 'feed vol'] # ['DO', 'pH', 'feed %'] # ['DO', 'pH', 'feed vol'] # 
 nutrient_inputs = ['Glucose (g/L)'] + var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
 cqa_outputs = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation','G0','G0F','G1','G1Fa','G1Fb','G2','G2F','Other']
 # generate day-by-day variable names for all time-series data
@@ -182,102 +198,37 @@ xvar_list_dict = {}
 # Y0: D14 CQAs
 yvar_list = [var for var in cqa_dict_byday[14]] 
 yvar_list_dict.update({0: yvar_list}) 
-print(len(yvar_list), yvar_list)
+print('Y0:', len(yvar_list), yvar_list)
+print()
 
 # X
 ## X0: DAY 0 nutrient inputs + process inputs
 xvar_list_prefilt = sort_list([var for var in nutrient_dict_byday[0]]) + process_inputs
 xvar_list_dict.update({0: xvar_list_prefilt})
-print(len(xvar_list_prefilt), xvar_list_prefilt)
+print('X0:', len(xvar_list_prefilt), xvar_list_prefilt)
+print()
 
-## X1: Basal and feed media composition inputs
+## X1: Basal and feed media composition inputs + process inputs
 xvar_list_prefilt = media_composition_inputs + process_inputs
 xvar_list_dict.update({1: xvar_list_prefilt})
-print(len(xvar_list_prefilt), xvar_list_prefilt)
+print('X1:', len(xvar_list_prefilt), xvar_list_prefilt)
+print()
+
+## X2: Basal and feed media composition inputs
+xvar_list_prefilt = media_composition_inputs + process_inputs
+xvar_list_prefilt.remove('feed vol')
+xvar_list_dict.update({2: xvar_list_prefilt})
+print('X2:', len(xvar_list_prefilt), xvar_list_prefilt)
+print()
 
 
 #%% Get X and Y datasets 
 for Y_featureset_idx in [0]:
-    for X_featureset_idx in [0,1]:
+    for X_featureset_idx in [1]:
         print('X_featureset_idx:', X_featureset_idx, ';  Y_featureset_idx:', Y_featureset_idx)
-        XY_fname = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+        XY_fname = f'X{X_featureset_idx}Y{Y_featureset_idx}{suffix}'
         XYarr_dict, XY_df = get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=f'{XY_fname}.csv', pkl_fname=f'{XY_fname}.pkl', shuffle_data=True, remove_cols_w_nan_thres=0.1)
-        
-#%% Visualize cross correlation heatmaps
-
-def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx): 
-    import matplotlib.pyplot as plt
-    from plot_utils import heatmap
-    
-    # get data
-    dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-    Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
-    print(f'X dataset size: n={Xscaled.shape[0]}, p={Xscaled.shape[1]}')
-    
-    # concatenate X and Y (key) variables
-    XYarr = np.concatenate((X,Y[:,:4]), axis=1)
-    XYarr = pd.DataFrame(XYarr, columns=xvar_list+yvar_list[:4])
-    
-    # calculate correlation matrix
-    corr_mat = XYarr.corr()
-    col_labels = corr_mat.columns.tolist()
-    row_labels = list(corr_mat.index)
-    corr_mat.round(3).to_csv(f'{data_folder}{dataset_name}_correlation_matrix.csv')
-    
-    # plot correlation matrix
-    fig, ax = plt.subplots(1,1, figsize=(20,20))
-    heatmap(corr_mat.to_numpy(), datamin=-1, datamax=1, logscale_cmap=False, annotate=None, row_labels=row_labels, col_labels=col_labels)
-    fig.savefig(f'{figure_folder}{dataset_name}_correlation_matrix.png', bbox_inches='tight')
-    
-    return corr_mat
-
-featureset_list = [(1,0)] # [(0,0), (1,0)]
-
-# get relevant dataset with chosen features
-for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
-    corr_mat = get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx)
-
-#%% plot correlation heatmap for subset of features
-
-import matplotlib.pyplot as plt
-from plot_utils import heatmap
-import seaborn as sns
-
-# get data
-dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
-print(f'X dataset size: n={Xscaled.shape[0]}, p={Xscaled.shape[1]}')
-
-# get feature subset
-subset_suffix = '_tier01'
-xvar_subset_all = []
-for yvar in yvar_list_key:
-    xvar_subset_all += xvar_sublist_sets[yvar][0]
-    xvar_subset_all += xvar_sublist_sets[yvar][1]
-xvar_subset_all = sort_list(list(set(xvar_subset_all)))
-print(len(xvar_subset_all), xvar_subset_all)
-
-idx_selected = [idx for idx, xvar in enumerate(xvar_list) if xvar in xvar_subset_all]
-X_selected = X[:,np.array(idx_selected)]
-
-# concatenate X and Y (key) variables
-XYarr = np.concatenate((X_selected,Y[:,:4]), axis=1)
-XYarr = pd.DataFrame(XYarr, columns=xvar_subset_all+yvar_list[:4])
-
-# calculate correlation matrix
-corr_mat = XYarr.corr()
-col_labels = corr_mat.columns.tolist()
-row_labels = list(corr_mat.index)
-corr_mat.round(3).to_csv(f'{data_folder}{dataset_name}_correlation_matrix.csv')
-
-# plot correlation matrix
-fig, ax = plt.subplots(1,1, figsize=(8,8))
-heatmap(corr_mat.to_numpy(), datamin=-1, datamax=1, logscale_cmap=False, annotate=None, row_labels=row_labels, col_labels=col_labels)
-fig.savefig(f'{figure_folder}{dataset_name}_correlation_matrix{subset_suffix}.png', bbox_inches='tight')
+        print()
 
 
-# get clustermap
-cl = sns.clustermap(corr_mat, cmap="viridis", figsize=(12,12))
-cl.fig.suptitle(f'Cluster map of selected features from {dataset_name}', fontsize=16) 
-# plt.title(f'Cluster map of {figtitle}', fontsize=16, loc='center')
-plt.savefig(f"{figure_folder}{dataset_name}_correlation_matrix{subset_suffix}_clustermap.png",  bbox_inches='tight') 
+

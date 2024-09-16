@@ -57,19 +57,19 @@ for (X_featureset_idx, Y_featureset_idx), subset_suffix in zip(featureset_list, 
             # get feature set
             if subset_suffix == '':
                 xvar_list_selected = xvar_list
-                Xscaled_selected = Xscaled
+                X_selected = X
                 f = 1
             else:
                 xvar_list_selected = xvar_sublist_sets_bymodeltype[yvar][model_type]
                 # Xscaled_selected
                 idx_selected = [idx for idx, xvar in enumerate(xvar_list) if xvar in xvar_list_selected]
-                Xscaled_selected = Xscaled[:,np.array(idx_selected)]
+                X_selected = X[:,np.array(idx_selected)]
                 f = round(len(xvar_list_selected)/len(xvar_list), 2)
                 
             # get model parameters
             model_list = model_params[dataset_name+subset_suffix][model_type][yvar]
             # fit model
-            model_list, metrics = fit_model_with_cv(Xscaled_selected, y, yvar, model_list, plot_predictions=False)
+            model_list, metrics = fit_model_with_cv(X_selected, y, yvar, model_list, plot_predictions=False, scale_data=True)
             # get predictions
             ypred_bymodel[model_type] = model_list[0]['ypred']
             ypred_cv_bymodel[model_type] = model_list[0]['ypred_cv']
@@ -131,3 +131,7 @@ plot_model_metrics_all(model_metrics_df_dict, ['randomforest','plsr','lasso','en
                        nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, 
                        figtitle=figtitle, savefig=savefig, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g', 'ensemble':'orange'})
 
+#%% pickle model dict
+
+with open(f'{data_folder}models_and_params.pkl', 'wb') as f:
+    pickle.dump(model_params, f)

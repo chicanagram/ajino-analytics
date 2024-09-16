@@ -32,7 +32,7 @@ def plot_feature_selection_metrics(res_model, p_init, figtitle=None, print_featu
         num_features = res_model_yvar['num_features'].to_numpy()
 
         # plot R2
-        ax[0,j].plot(num_features, res_model_yvar['r2'].to_numpy(), linewidth=3, color='b')
+        ax[0,j].plot(num_features, res_model_yvar['r2_train'].to_numpy(), linewidth=3, color='b')
         ax[0,j].plot(num_features, res_model_yvar['r2_cv'].to_numpy(), linewidth=3, color='r')
         # plot MAE
         ax[1,j].plot(num_features, res_model_yvar['mae_norm_train'].to_numpy(), linewidth=3, color='b')
@@ -46,7 +46,7 @@ def plot_feature_selection_metrics(res_model, p_init, figtitle=None, print_featu
             ax[row_idx,j].set_xlabel('Number of features', fontsize=16)
             if j==0:
                 ax[row_idx,j].legend(['train', 'loocv'], fontsize=14)
-        ax[0,j].set_ylabel('R2', fontsize=16)
+        ax[0,j].set_ylabel('r2_train', fontsize=16)
         ax[1,j].set_ylabel('MAE (normalized)', fontsize=16)
         ax[2,j].set_ylabel('R2 over MAE (norm)', fontsize=16)
         ymax = ax.flatten()[0].get_position().ymax
@@ -68,19 +68,20 @@ def plot_feature_selection_metrics(res_model, p_init, figtitle=None, print_featu
     
 #%% Perform Recursive Feature Elimination
 featureset_list =  [(1,0)]
-models_to_evaluate = ['randomforest', 'plsr'] # ['plsr'] # 
+models_to_evaluate = ['plsr'] # ['randomforest', 'plsr'] # 
 feature_selection_method = 'RFE'
 
 # load dataset
 for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
     # get data
     dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-    Y, X_init, Xscaled_init, yvar_list, xvar_list_init = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
-    n = Xscaled_init.shape[0]
+    dataset_suffix = '' #'_avg'
+    Y, X_init, Xscaled_init, yvar_list, xvar_list_init = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
+    n = X_init.shape[0]
     p_init = X_init.shape[1]
 
     # initialize dataframe for recording results
-    res_cols = ['model_type', 'yvar', 'num_features', 'num_features_dropped', 'r2', 'r2_cv', 'mae_train', 'mae_cv', 'mae_norm_train', 'mae_norm_cv', 'r2_over_mae_norm_train', 'r2_over_mae_norm_cv', 'xvar_to_drop', 'xvar_list']
+    res_cols = ['model_type', 'yvar', 'num_features', 'num_features_dropped', 'r2_train', 'r2_cv', 'mae_train', 'mae_cv', 'mae_norm_train', 'mae_norm_cv', 'r2_over_mae_norm_train', 'r2_over_mae_norm_cv', 'xvar_to_drop', 'xvar_list']
     res = []
     
     for model_type in models_to_evaluate:
@@ -92,11 +93,11 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             model_list = model_params[dataset_name][model_type][yvar].copy()
 
             # get initial X variables
-            Xscaled = Xscaled_init.copy()
+            X = X_init.copy()
             p = p_init
             xvar_list = xvar_list_init.copy()
             # fit model with full feature set
-            model_list, metrics = fit_model_with_cv(Xscaled, y, yvar, model_list, plot_predictions=False)
+            model_list, metrics = fit_model_with_cv(X, y, yvar, model_list, plot_predictions=False, scale_data=True)
             # get feature to drop
             idx_to_drop, xvar_to_drop = get_feature_to_drop(model_list[0]['model'], xvar_list, model_type) 
             # update dataset
@@ -106,21 +107,21 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             # iterate over number of features to eliminate
             for k in range(1, p_init): 
 
-                # update Xscaled by dropping selected feature
-                p = Xscaled.shape[1]
+                # update Xby dropping selected feature
+                p = X.shape[1]
                 idx_to_keep = [idx for idx in range(p) if idx != idx_to_drop]
-                Xscaled = Xscaled[:, np.array(idx_to_keep)]
+                X = X[:, np.array(idx_to_keep)]
                 xvar_list = [xvar_list[idx] for idx in idx_to_keep]
                     
                 # evaluate model with dropped feature
-                model_list, metrics = fit_model_with_cv(Xscaled, y, yvar, model_list, plot_predictions=False)
+                model_list, metrics = fit_model_with_cv(X, y, yvar, model_list, plot_predictions=False)
                 # get feature to drop
                 idx_to_drop, xvar_to_drop = get_feature_to_drop(model_list[0]['model'], xvar_list, model_type)
                 
                 # update dataset
                 metrics.update({
                     'num_features':p-1, 'num_features_dropped':k, 
-                    'r2_over_mae_norm_train': metrics['r2']/metrics['mae_norm_train'], 
+                    'r2_over_mae_norm_train': metrics['r2_train']/metrics['mae_norm_train'], 
                     'r2_over_mae_norm_cv': metrics['r2_cv']/metrics['mae_norm_cv'], 
                     'xvar_to_drop':xvar_to_drop, 'xvar_list':xvar_list
                     }) 
@@ -128,7 +129,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 
                 # update n_components for plsr models
                 if model_type=='plsr': 
-                    model_list[0]['n_components'] = 5
+                    model_list[0]['n_components'] = 10
             
         # aggregate model results dataframe       
         res_model = pd.DataFrame(res)[res_cols]
@@ -138,38 +139,41 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
         figtitle = f'{model_type} {feature_selection_method} feature selection metrics'
         plot_feature_selection_metrics(res_model, p_init, figtitle=figtitle, print_features_sequence=True, feature_selection_method=feature_selection_method)
         
+        # save model results 
+        res_model.to_csv(f'{data_folder}model_metrics_{feature_selection_method}_{dataset_name}{dataset_suffix}_{model_type}.csv')
+        
     # aggregate overall results dataframe
     res = pd.DataFrame(res)[res_cols]
-    res.to_csv(f'{data_folder}model_metrics_{feature_selection_method}_{dataset_name}.csv')
+    res.to_csv(f'{data_folder}model_metrics_{feature_selection_method}_{dataset_name}{dataset_suffix}.csv')
     
 #%% get features retained at optimal point
 num_features_selected_RFE = {
     'randomforest': {
-        'Titer (mg/L)_14': 22,
-        'mannosylation_14': 18,
-        'fucosylation_14': 13,
-        'galactosylation_14': 19
+        'Titer (mg/L)_14': 9,
+        'mannosylation_14': 10,
+        'fucosylation_14': 12,
+        'galactosylation_14': 8
         },
     'plsr': {
-        'Titer (mg/L)_14': 5,
-        'mannosylation_14': 5,
-        'fucosylation_14': 5,
-        'galactosylation_14': 5
+        'Titer (mg/L)_14': 10,
+        'mannosylation_14': 9,
+        'fucosylation_14': 9,
+        'galactosylation_14': 12
         }
     }
 # load dataset
 for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
     dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-    for model_type in ['randomforest']:
+    for model_type in ['plsr']: #['randomforest']:
         print(model_type)
         for yvar in yvar_list_key:
             print(yvar)
             num_features = num_features_selected_RFE[model_type][yvar]
-            res = pd.read_csv(f'{data_folder}{dataset_name}_RFE.csv', index_col=0)
+            res = pd.read_csv(f'{data_folder}model_metrics_{feature_selection_method}_{dataset_name}{dataset_suffix}.csv', index_col=0)
             res_opt = res[(res.model_type==model_type) & (res.yvar==yvar) & (res.num_features==num_features)].iloc[0]
             xvar_list_selected = str(res_opt.xvar_list)[1:-1].replace("'",'').split(', ')
             for xvar in xvar_list_selected:
                 print(xvar)            
-            print(f"R2:{res_opt['r2']}, R2 (CV):{res_opt['r2_cv']}, MAE (train): {res_opt['mae_train']}, ({round(res_opt['mae_norm_train']*100,1)}%), MAE (CV): {res_opt['mae_cv']}, ({round(res_opt['mae_norm_cv']*100,1)}%),")
+            print(f"R2:{res_opt['r2_train']}, R2 (CV):{res_opt['r2_cv']}, MAE (train): {res_opt['mae_train']}, ({round(res_opt['mae_norm_train']*100,1)}%), MAE (CV): {res_opt['mae_cv']}, ({round(res_opt['mae_norm_cv']*100,1)}%),")
             print()
 

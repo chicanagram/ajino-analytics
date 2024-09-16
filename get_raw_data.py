@@ -10,7 +10,7 @@ Created on Thu Jul 18 14:58:31 2024
 import pandas as pd
 import numpy as np
 import pickle
-from variables import data_folder, sampling_rawdata_dict
+from variables import data_folder, sampling_rawdata_dict, overall_glyco_cqas
 
 def xlsx_to_dict(
         fpath,
@@ -62,6 +62,8 @@ def xlsx_to_dict(
         if 'pH' not in df_in:
             df_in['pH'] = 7.0
         df_in = df_in[['Basal medium', 'Feed medium', 'DO', 'pH', 'feed %', 'feed day', 'n']] # reorder columns
+        if df_in['feed %'].mean() < 1: 
+            df_in['feed %'] = df_in['feed %']*100
         d_in = df_in.to_dict('index')
         var_dict.update({'inputs':df_in.columns.tolist()})
     else: 
@@ -125,6 +127,20 @@ def append_to_datadict(d, d_in, d_out):
         d[i].update(d_out[i])
     return d
 
+def add_glyco_overall_cqas(d_out, overall_glyco_cqas, printout=False):
+    for i_exp, d_exp in d_out.items():
+        for glyco_cqa, component_list in overall_glyco_cqas.items():
+            t = d_exp[component_list[0]]['t']
+            y = np.zeros_like(t)
+            for component in component_list:
+                y += d_exp[component]['y']
+            d_exp.update({glyco_cqa: {'t':t, 'y':y}})
+            if printout:
+                print(glyco_cqa, t, y)
+        d_out.update({i_exp: d_exp})
+    return d_out
+            
+
 #%% get excel file
 data_all = {}
 
@@ -136,6 +152,18 @@ for dataset_num in [0, 1, 2]:
     usecols_list = dataset_info['usecols']
     cqa_startcol_list = dataset_info['cqa_startcol']
     fpath = f'{data_folder}{fname}'
+    sheets_to_process = [
+        'VCD, VIA, Titer, metabolites',
+        'AA',
+        'VT',
+        'MT',
+        'Glyco',
+        'Nuc, Amine',
+        'volume',
+        'Media composition'
+        ]
+    sheets_w_sampling_data = ['VCD, VIA, Titer, metabolites', 'AA', 'VT', 'MT', 'Glyco', 'Nuc, Amine']
+    skip_sheets = [] # sheets_w_sampling_data
     
     xl = pd.ExcelFile(fpath)
     sheet_list = xl.sheet_names
@@ -144,82 +172,62 @@ for dataset_num in [0, 1, 2]:
     d = {}
     var_dict_all = {}
     
-    # read sheet: 'VCD, VIA, Titer, metabolites'
-    sheet_name = 'VCD, VIA, Titer, metabolites'
-    sheetidx = 0
-    if sheet_name in sheet_list:
-        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=True)
-        d = append_to_datadict(d, d_in, d_out)
-        var_dict_all.update(var_dict)
-        print('Obtained VCD, VIA, Titer, metabolites data')
-    
-    # read sheet: 'AA'
-    sheet_name = 'AA'
-    sheetidx = 1
-    if sheet_name in sheet_list:
-        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-        d = append_to_datadict(d, d_in, d_out)
-        var_dict_all.update(var_dict)
-        print('Obtained AA data')
-    
-    # read sheet: 'VT'
-    sheet_name = 'VT'
-    sheetidx = 2
-    if sheet_name in sheet_list:
-        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-        d = append_to_datadict(d, d_in, d_out)
-        var_dict_all.update(var_dict)
-        print('Obtained VT data')
-    
-    # read sheet: 'MT'
-    sheet_name = 'MT'
-    sheetidx = 3
-    if sheet_name in sheet_list:
-        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-        d = append_to_datadict(d, d_in, d_out)
-        var_dict_all.update(var_dict)
-        print('Obtained MT data')
-    
-    # read sheet: 'Glyco'
-    sheet_name = 'Glyco'
-    sheetidx = 4
-    if sheet_name in sheet_list:
-        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-        d = append_to_datadict(d, d_in, d_out)
-        var_dict_all.update(var_dict)
-        print('Obtained Glyco data')
-    
-    # read sheet: 'Nuc, Amine'
-    sheet_name = 'Nuc, Amine'
-    sheetidx = 5
-    if sheet_name in sheet_list:
-        skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-        d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=False)
-        d = append_to_datadict(d, d_in, d_out)
-        var_dict_all.update(var_dict)
-        print('Obtained Nuc, Amine data')
-    else: 
-        print(f'{sheet_name} not found in xlsx file.')
-    
-    # Get volume data
-    sheet_name = 'volume'
-    sheetidx = 6
-    # get volume data from sheet
-    skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
-    exp_idx = list(d.keys())
-    vol_arr = pd.read_excel(fpath, sheet_name=sheet_name, skiprows=skiprows, usecols=usecols).iloc[1:, 2:].to_numpy()
-    vol_arr_feed = vol_arr[:, [(i-1)*4+2 for i in exp_idx]]
-    vol_arr_init = vol_arr[0, [(i-1)*4+1 for i in exp_idx]]
-    vol_arr_sum_norm = (np.nansum(vol_arr_feed, axis=0)/vol_arr_init).astype(float)
-    # append to dict
-    for k in d:
-        d[k]['feed vol'] = float(vol_arr_sum_norm[k-1])
-    print('Obtained feed volume data')
+    # iterate through sheets to agregate raw data
+    for sheetidx, sheet_name in enumerate(sheets_to_process):
+        print(f'Processing {sheetidx}, {sheet_name}')
+        if sheet_name in sheet_list and sheet_name not in skip_sheets:
+            
+            if sheet_name in sheets_w_sampling_data:
+                get_inputs = True if sheetidx==0 else False
+                skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+                d_in, d_out, var_dict = xlsx_to_dict(fpath, sheet_name, skiprows=skiprows, usecols=usecols, cqa_startcol=cqa_startcol, get_inputs=get_inputs)
+                # calculate mannosylation, fucosylation, glycosylation
+                if sheet_name=='Glyco':
+                    d_out = add_glyco_overall_cqas(d_out, overall_glyco_cqas, printout=False)
+                d = append_to_datadict(d, d_in, d_out)
+                var_dict_all.update(var_dict)
+                
+            elif sheet_name=='volume':
+                skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+                exp_idx = list(d.keys())
+                vol_arr = pd.read_excel(fpath, sheet_name=sheet_name, skiprows=skiprows, usecols=usecols).iloc[1:, 2:].to_numpy()
+                vol_arr_feed = vol_arr[:, [(i-1)*4+2 for i in exp_idx]]
+                vol_arr_init = vol_arr[0, [(i-1)*4+1 for i in exp_idx]]
+                vol_arr_sum_norm = (np.nansum(vol_arr_feed, axis=0)/vol_arr_init).astype(float)
+                # append to dict
+                for k in d:
+                    d[k]['feed vol'] = float(vol_arr_sum_norm[k-1])
+                    
+            elif sheet_name=='Media composition':
+                skiprows, usecols, cqa_startcol = skiprows_list[sheetidx], usecols_list[sheetidx], cqa_startcol_list[sheetidx]
+                media_df = pd.read_excel(fpath, sheet_name=sheet_name, skiprows=skiprows, usecols=usecols)
+                # remove empty rows
+                media_df = media_df.dropna(axis=0, how='all')
+                # remove rows with redundant headers
+                col0 = media_df.iloc[:, 0].tolist()
+                idx_to_keep = [i for i, el in enumerate(col0) if (el.find('unit')==-1 and el.find('AA')==-1 and el.find('VT')==-1 and el.find('MT')==-1 and el.find('Sugar')==-1)]
+                media_df = media_df.iloc[idx_to_keep,:]
+                # reset index
+                media_df = media_df.reset_index(drop=True)
+                col0 = media_df.iloc[:, 0].tolist()
+                # replace non float values with np.nan
+                media_df = media_df[media_df.map(np.isreal)]
+                media_df.iloc[:,0] = col0
+                # update dict
+                for k in d:
+                    # get Feed and Basal combination for this each sample
+                    media_type_dict = {
+                        'basal': d[k]['Basal medium'], 
+                        'feed':d[k]['Feed medium']
+                        }
+                    # get basal values in media_df
+                    for media_type, media_col_name in media_type_dict.items():
+                        nutrient_list = [tuple(el) for el in list(media_df[['unit: mM', media_col_name]].set_index('unit: mM').to_records())]
+                        for (nutrient, conc) in nutrient_list:
+                            d[k][f'{nutrient}_{media_type}'] = conc
+            print(f'Obtained {sheet_name} data')
+        else: 
+            print(f'{sheet_name} not found in .xlsx file')
         
     # add fields
     # add experiment label

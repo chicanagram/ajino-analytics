@@ -43,11 +43,13 @@ def align_ydata_by_timpoints(vardata_agg_t, vardata_agg_y):
 # set dataset name
 # dataset_num = 2
 # dataset_name = f'dataset{dataset_num}'
+
+
 dataset_name = 'DATA'
-pkl_fname = f'{dataset_name}.pkl'
+suffix = ''
 
 # open pickle file
-with open(f'{data_folder}{pkl_fname}', 'rb') as handle:
+with open(f'{data_folder}{dataset_name}{suffix}.pkl', 'rb') as handle:
     datadict = pickle.load(handle)
 
 # initialize dict for averaged data
@@ -65,33 +67,43 @@ for k in datadict:
 var_list = list(datadict[k].keys())
 
 # iterate through exp_list and average data replicates
-for exp_label, key_list in explabel_to_datakey_dict.items():
+for i, (exp_label, key_list) in enumerate(explabel_to_datakey_dict.items()):
+    print(exp_label)
     # initialize nested dict
     datadict_averaged[exp_label] = {}
     
     # iterate through variables
     for var in var_list:   
-        print(var)
+        print(var, end=' ')
         vardata_agg_t = []
         vardata_agg_y = []
         for key in key_list: 
+            # aggregate time series data
             if var in datadict[key] and isinstance(datadict[key][var], dict):
-                    vardata_agg_t.append(datadict[key][var]['t'])
-                    vardata_agg_y.append(datadict[key][var]['y'])
+                vardata_agg_t.append(datadict[key][var]['t'])
+                vardata_agg_y.append(datadict[key][var]['y'])
+            # aggregate non-time series data
+            elif var in datadict[key] and isinstance(datadict[key][var], float):
+                vardata_agg_y.append(datadict[key][var])
         
         # average data
         if len(vardata_agg_y) > 0:
-            vardata_avg_t, vardata_avg_y = align_ydata_by_timpoints(vardata_agg_t, vardata_agg_y)
-            vardata_avg_y = np.nanmean(np.array(vardata_avg_y),axis=0)
-            datadict_averaged[exp_label][var] = {'t':vardata_avg_t, 'y': vardata_avg_y}
+            if len(vardata_agg_t) > 0:
+                vardata_avg_t, vardata_avg_y = align_ydata_by_timpoints(vardata_agg_t, vardata_agg_y)
+                vardata_avg_y = np.nanmean(np.array(vardata_avg_y),axis=0)
+                datadict_averaged[exp_label][var] = {'t':vardata_avg_t, 'y': vardata_avg_y}
+            else: 
+                vardata_avg_y = np.mean(np.array(vardata_agg_y))
+                datadict_averaged[exp_label][var] = float(vardata_avg_y)
         elif var in datadict[key]:
             if var == 'n':
                 datadict_averaged[exp_label][var] = len(key_list)
             else:
                 datadict_averaged[exp_label][var] = datadict[key][var]
+    print()
 
 # save averaged data
-pkl_fname_avg = f'{dataset_name}_avg.pkl'
+pkl_fname_avg = f'{dataset_name}{suffix}_avg.pkl'
 with open(f'{data_folder}{pkl_fname_avg}', 'wb') as handle:
     pickle.dump(datadict_averaged, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

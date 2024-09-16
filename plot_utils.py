@@ -85,7 +85,7 @@ def remove_nandata(x, y, on_var='y'):
         x = x[idx_to_keep]
     return x, y
 
-def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_dict, figtitle=None, savefig=None):
+def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_dict=None, figtitle=None, savefig=None, plot_suffixes={'':'-'}):
     fig, ax = plt.subplots(nrows, ncols, figsize=figsize)
     legend = []   
     axs_with_content = []
@@ -93,18 +93,22 @@ def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_d
         d_exp = datadict[k]
         
         # get plot color and label
-        exp_label = d_exp['exp_label']
-        plot_label = f"{exp_label}_{d_exp['n']}"
-        color = colormapping_dict[exp_label]
-        legend.append(plot_label)
+        if len(datadict)>1:
+            exp_label = d_exp['exp_label']
+            plot_label = f"{exp_label}_{d_exp['n']}"
+            legend.append(plot_label)
+            color = colormapping_dict[exp_label]
+        else: 
+            color = 'b'
         
         # plot variable
         for idx, var in enumerate(var_to_plot):
             i, j = convert_figidx_to_rowcolidx(idx, ncols)
-            if var in d_exp:
-                t, y = d_exp[var]['t'],d_exp[var]['y']
-                t, y = remove_nandata(t,y)
-                ax[i][j].plot(t, y, c=color, alpha=0.9)
+            for suffix, linestyle in plot_suffixes.items():
+                if var in d_exp and f't{suffix}' in d_exp[var]:
+                    t, y = d_exp[var][f't{suffix}'],d_exp[var][f'y{suffix}']              
+                    t, y = remove_nandata(t,y)
+                    ax[i][j].plot(t, y, c=color, alpha=0.9, linestyle=linestyle)
                 ax[i][j].set_ylabel(var)
                 if var not in axs_with_content:
                     axs_with_content.append(var)
@@ -118,7 +122,8 @@ def plot_data_panel(datadict, var_to_plot, nrows, ncols, figsize, colormapping_d
         ax[i][j].set_axis_off()
         
     # plot legend
-    fig.legend(legend, bbox_to_anchor=(1.03, 0.8), fontsize=12)
+    if len(datadict)>1:
+        fig.legend(legend, bbox_to_anchor=(1.03, 0.8), fontsize=12)
     
     # set title
     ymax = ax.flatten()[0].get_position().ymax

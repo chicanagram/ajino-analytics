@@ -11,12 +11,15 @@ matplotlib = "*"
 ipykernel = "*"
 numpy = "*"
 pandas = "*"
-spyder-kernels = "*"
 openpyxl = "*"
 scipy = "*"
 scikit-learn = "*"
 seaborn = "*"
 knockpy = "*"
+fastapi = "==0.110"
+spacy = "==3.7.5"
+autogluon = "==1.1.1"
+spyder-kernels = "==2.5.2"
 
 [dev-packages]
 
