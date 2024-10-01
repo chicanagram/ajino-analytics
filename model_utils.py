@@ -22,7 +22,7 @@ from plot_utils import figure_folder, heatmap, convert_figidx_to_rowcolidx
 
 data_folder = '../ajino-analytics-data/'
 
-
+#%% cross-validation testing
 
 def get_corr_coef(x, y, corr_to_get=['spearmanr', 'pearsonr']):
     res = {}
@@ -219,7 +219,7 @@ def plot_model_param_results(modelparam_metrics_df, yvar_list_to_plot, dataset_n
         for i, yvar in enumerate(yvar_list_to_plot):
             # get relevant metrics to plot -- remove data that is out of range
             metrics_filt = modelparam_metrics_df.loc[(modelparam_metrics_df['model_type']==model_type) & (modelparam_metrics_df['yvar']==yvar)]
-            metrics_filt = metrics_filt.loc[(metrics_filt.r2_train>=0) & (metrics_filt.mae_norm_cv<10)]
+            metrics_filt = metrics_filt.loc[(metrics_filt.r2_train>=0) & (metrics_filt.mae_norm_cv<5)]
             if len(metrics_filt)>0:
                 param_name = str(metrics_filt.iloc[0]['param_name'])
                 # plot R2, MAE (CV), MAE (test) for all parameter values
@@ -322,6 +322,9 @@ def evaluate_model_on_train_test_data(X_test, y_test, X_train, y_train, model_di
         print(f'R2:{r2_train}, R2 (CV):{r2_test}, {scoring} (train): {score_train} ({round(score_norm_train*100,1)}%), {scoring} (CV):{score_test} ({round(score_norm_test*100,1)}%)')
     return metrics, model
         
+
+#%% feature analysis
+
 def order_list_by_frequencies(lst):
     arr = np.array(lst)
     vals, counts = np.unique(arr, return_counts=True)
@@ -356,7 +359,6 @@ def get_order_of_element_sizes(arr, invert_importance_order=True):
     return el_orders
 
 def get_feature_coefficients(model, model_type):
-    
     if model_type in ['plsr', 'lasso']: 
         coefs = model.coef_.reshape(-1,)
     elif model_type in ['randomforest']:
@@ -364,7 +366,6 @@ def get_feature_coefficients(model, model_type):
     return coefs
 
 def order_features_by_coefficient_importance(coefs, xvar_list, filter_out_zeros=True):
-    coefs_abs = np.abs(coefs)
     sort_idxs = np.argsort(coefs)
     sort_idxs = sort_idxs[::-1]
     xvar_list_sorted = [xvar_list[idx] for idx in sort_idxs]

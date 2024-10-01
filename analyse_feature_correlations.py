@@ -18,11 +18,13 @@ import numpy as np
 import pandas as pd
 import pickle
 import matplotlib.pyplot as plt
-from plot_utils import heatmap
+from plot_utils import heatmap, annotate_heatmap
 import seaborn as sns
-from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list,  xvar_sublist_sets, yvar_list_key
+from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key
 from get_datasets import get_XYdataset, get_XYdata_for_featureset
 from sklearn.preprocessing import scale
+from scipy.cluster import hierarchy
+import scipy.spatial.distance as ssd
 
  
 def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx): 
@@ -127,7 +129,36 @@ def get_dict_of_features_with_highcorr(corr_mat, corr_thres):
         print(i, xvar, ':', *high_corr_vars)
     return highcorr_vars_dict
 
-#%%
+
+def cluster_features_based_on_crosscorrelations(corrX, threshold, print_res=False):
+    from scipy.cluster import hierarchy
+    import scipy.spatial.distance as ssd
+    
+    xvar_list = corrX.columns.tolist()
+    distances = 1 - corrX.abs().values  # pairwise distnces
+    distArray = ssd.squareform(distances)  # scipy converts matrix to 1d array
+    hier = hierarchy.linkage(distArray, method="ward")  # you can use other methods
+    if thres==0.08:
+        dend = hierarchy.dendrogram(hier, truncate_mode="level", p=30, color_threshold=1.5)
+        plt.show()
+    # cluster label features
+    cluster_labels = hierarchy.fcluster(hier, threshold, criterion="distance")
+    print('# of feature clusters:', len(list(set(cluster_labels))))
+    cluster_dict_xvar_idxs = {}
+    cluster_dict_xvar_names = {}
+    for i, label in enumerate(cluster_labels):
+        if label not in cluster_dict_xvar_names: 
+            cluster_dict_xvar_names[label] = []
+            cluster_dict_xvar_idxs[label] = []
+        cluster_dict_xvar_names[label].append(xvar_list[i])
+        cluster_dict_xvar_idxs[label].append(i)
+        
+    if print_res:
+        for label, feature_grp in cluster_dict_xvar_names.items():
+            print(label, feature_grp)
+    return cluster_dict_xvar_names, cluster_dict_xvar_idxs
+
+#%% get all XY feature corelations
 
 # get data
 X_featureset_idx, Y_featureset_idx = 1, 0
@@ -140,6 +171,19 @@ X_df = pd.DataFrame(X, columns=xvar_list)
 # get correlation matrix
 corr_mat = get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx)
 
+# get concatenated XY data
+XYarr = np.concatenate((X, Y[:,:4]), axis=1)
+XYarr = pd.DataFrame(XYarr, columns=xvar_list+yvar_list[:4])
+
+#%% plot scatter plot of pairs of features
+
+xvar = 'feed %'
+yvar = 'feed vol'
+plt.scatter(XYarr[xvar], XYarr[yvar])
+plt.xlabel(xvar)
+plt.ylabel(yvar)
+plt.show()
+
 #%% plot correlation heatmap for subset of features
 
 # get feature subset
@@ -147,17 +191,17 @@ subset_suffix = ''
 if subset_suffix == '':
     X_selected = X.copy()
     xvar_selected = xvar_list.copy()
-else:
-    xvar_subset_all = []
-    for yvar in yvar_list_key:
-        xvar_subset_all += xvar_sublist_sets[yvar][0]
-        xvar_subset_all += xvar_sublist_sets[yvar][1]
-    xvar_subset_all = sort_list(list(set(xvar_subset_all)))
-    print(len(xvar_subset_all), xvar_subset_all)
+# else:
+#     xvar_subset_all = []
+#     for yvar in yvar_list_key:
+#         xvar_subset_all += xvar_sublist_sets[yvar][0]
+#         xvar_subset_all += xvar_sublist_sets[yvar][1]
+#     xvar_subset_all = sort_list(list(set(xvar_subset_all)))
+#     print(len(xvar_subset_all), xvar_subset_all)
     
-    idx_selected = [xvar_list.index(xvar) for xvar in xvar_subset_all]
-    X_selected = X[:,np.array(idx_selected)]
-    xvar_selected = xvar_subset_all.copy()
+    # idx_selected = [xvar_list.index(xvar) for xvar in xvar_subset_all]
+    # X_selected = X[:,np.array(idx_selected)]
+    # xvar_selected = xvar_subset_all.copy()
 
 # concatenate X and Y (key) variables
 XYarr = np.concatenate((X_selected,Y[:,:4]), axis=1)
@@ -175,12 +219,89 @@ print()
 # for each variable, print list of other variables with which it has high correlation
 highcorr_vars_dict = get_dict_of_features_with_highcorr(corr_mat, corr_thres=0.95)
 
-#%% get clusters of high correlation features
+#%% get clusters of high correlation features using scipy hierarchical clustering
 
-# highcorr_vars_dict = get_dict_of_features_with_highcorr(corr_mat, corr_thres=0.98)
-# for xvar, highcorr_xvar_list in highcorr_vars_dict.items():
+corrX = corr_mat.iloc[:-4, :-4]
+thres_arr = np.arange(0.001, 2.5, 0.001)
+num_clusters_arr = np.zeros((len(thres_arr),))
+cluster_dict_bynumclusters = {}
+
+for i, thres in enumerate(thres_arr):
+    print(i, thres)
+    cluster_dict_xvar_names, cluster_dict_xvar_idxs = cluster_features_based_on_crosscorrelations(corrX, threshold=thres, print_res=False)
+    num_clusters = len(cluster_dict_xvar_names)
+    num_clusters_arr[i] = num_clusters
+    if num_clusters not in cluster_dict_bynumclusters:
+        cluster_dict_bynumclusters[num_clusters] = {
+            'xvar_names': cluster_dict_xvar_names, 
+            'xvar_idxs':cluster_dict_xvar_idxs,
+            'thres': thres
+            }
     
-# highcorr_vars_dict['Fe_basal']
-plt.scatter(XYarr['feed vol'], XYarr['feed %'])
+plt.plot(thres_arr, num_clusters_arr)
+plt.title('Number of clusters vs. Distance threshold for grouping correlated features')
+plt.xlabel('Distance threshold for grouping correlated features')
+plt.ylabel('Number of feature clusters')
 plt.show()
 
+#%% investigate one particular threshold
+thres = 0.08
+xvar_list = corrX.columns.tolist()
+distances = 1 - corrX.abs().values  # pairwise distnces
+distArray = ssd.squareform(distances)  # scipy converts matrix to 1d array
+hier = hierarchy.linkage(distArray, method="ward")  # you can use other methods
+if thres==0.08:
+    dend = hierarchy.dendrogram(hier, truncate_mode="level", p=30, color_threshold=1.5)
+    plt.show()
+# cluster label features
+cluster_labels = hierarchy.fcluster(hier, thres, criterion="distance")
+
+#%% 
+# create dataframe based on results
+num_clusters_list = list(cluster_dict_bynumclusters.keys())
+num_clusters_list.sort()
+cluster_df = pd.DataFrame(index=num_clusters_list, columns=corrX.columns.tolist())
+for num_clusters in num_clusters_list:
+    xvar_names_dict = cluster_dict_bynumclusters[num_clusters]['xvar_names']
+    for cluster_label in range(1,num_clusters+1):
+        cluster_df.loc[num_clusters, xvar_names_dict[cluster_label]] = cluster_label
+# sort columns by labels
+col_idx_sorted = np.argsort(cluster_df.iloc[-1,:].to_numpy())
+colormap = 'gist_ncar' #  'viridis' #     
+
+# plot raw labels
+fig, ax = plt.subplots(1,1, figsize=(32,28))
+heatmap(cluster_df.to_numpy(), ax=ax, logscale_cmap=False, annotate=None, row_labels=num_clusters_list, col_labels=corrX.columns.tolist(), show_gridlines=False, c=colormap)
+plt.show()
+
+# normalize each row
+cluster_df_norm = cluster_df.copy()
+for i in range(len(cluster_df_norm)):
+    cluster_df_norm.iloc[i,:] = cluster_df_norm.iloc[i,:]/cluster_df_norm.iloc[i,:].max()
+# plot raw labels normalized along each row
+fig, ax = plt.subplots(1,1, figsize=(32,28))
+heatmap(cluster_df_norm.to_numpy(), ax=ax, logscale_cmap=False, annotate=None, row_labels=num_clusters_list, col_labels=corrX.columns.tolist(), show_gridlines=False, c=colormap)
+plt.show()
+
+# plot raw labels normalized along each row, sorted by label
+cluster_df_sorted = cluster_df.copy().iloc[:, col_idx_sorted]
+cluster_df_norm_sorted = cluster_df_norm.copy().iloc[:, col_idx_sorted]
+xvar_list_sorted = [xvar_list[idx] for idx in col_idx_sorted]
+fig, ax = plt.subplots(1,1, figsize=(32,28))
+heatmap(cluster_df_norm_sorted.to_numpy(), ax=ax, logscale_cmap=False, annotate=None, row_labels=num_clusters_list, col_labels=xvar_list_sorted, show_gridlines=False, c=colormap)
+annotate_heatmap(cluster_df_sorted.to_numpy(), ax, ndecimals=0)
+plt.show()
+
+# save cluster_df_sorted
+cluster_df_sorted.to_csv(f'{data_folder}features_by_cluster_corrdist.csv')
+
+
+#%% Get Variance Inflation Factor
+
+vif = pd.Series(np.linalg.inv(corr_mat.values).diagonal(), index=corr_mat.index)
+for i in range(len(vif)):
+    print(vif.iloc[i])
+    
+    
+    
+    

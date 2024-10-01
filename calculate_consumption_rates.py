@@ -74,6 +74,11 @@ for exp_idx, d_exp in d.items():
         # update overall dict
         d.update({exp_idx: d_exp})
 
+
+# save data
+with open(f'{data_folder}DATA.pkl', 'wb') as handle:
+    pickle.dump(d, handle)
+    
 #%% visualize relationships
 
 cqas_to_analyse = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation']
@@ -141,7 +146,7 @@ for k, cqa in enumerate(cqas_to_analyse):
     plt.suptitle(f'{cqa} (Day 14) vs average specific rate of change for various nutrients', y=ymax*1.025, fontsize=24)
     plt.savefig(f'{figure_folder}scatter_cqa-{k}_vs_nutrientSpecificRate.png', bbox_inches='tight')
     plt.show()
-            
+
     # update result
     corr_df = pd.DataFrame(corr_cqa)
     cqa_vs_rate_corr.update({cqa:corr_df})
@@ -149,6 +154,9 @@ for k, cqa in enumerate(cqas_to_analyse):
     # identify nutrients with highest correlations
     corr_df = corr_df.sort_values(by='abs_avg', ascending=False)
     print(corr_df[['nutrient', 'pearsonR', 'spearmanR']].set_index('nutrient', drop=True))
+    
+# save results
+corr_df_all.to_csv(f'{data_folder}corr_cqa_nutrient_specific_rate_of_change.csv')
     
 #%% 
 

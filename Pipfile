@@ -20,6 +20,7 @@ fastapi = "==0.110"
 spacy = "==3.7.5"
 autogluon = "==1.1.1"
 spyder-kernels = "==2.5.2"
+statsmodels = "==0.14.3"
 
 [dev-packages]
 

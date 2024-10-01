@@ -9,7 +9,7 @@ Created on Mon Jul 22 21:36:39 2024
 import numpy as np
 import pandas as pd
 import pickle
-from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list,  xvar_sublist_sets, yvar_list_key
+from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key
 from sklearn.preprocessing import scale
 
 def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=None, pkl_fname=None, data_folder=data_folder, shuffle_data=True, remove_cols_w_nan_thres=0.1):
@@ -84,9 +84,9 @@ def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix
 
 # open pickle file for main dataset
 dataset_name = 'DATA'
-# suffix = '' 
-suffix = '_avg'
-pkl_fname = f'{dataset_name}{suffix}.pkl'
+dataset_suffix = '' 
+# dataset_suffix = '_avg'
+pkl_fname = f'{dataset_name}{dataset_suffix}.pkl'
 with open(f'{data_folder}{pkl_fname}', 'rb') as handle:
     datadict = pickle.load(handle)
     
@@ -175,7 +175,7 @@ d = d.loc[:,(d!= 0).any(axis=0)]
 d = d.dropna(axis=1, how='all')
 
 # save dataframe 
-csv_fpath = f'{data_folder}{dataset_name}.csv'
+csv_fpath = f'{data_folder}{dataset_name}{dataset_suffix}.csv'
 d.to_csv(csv_fpath)
 
 #%% GET X Y VARIABLE SETS 
@@ -223,8 +223,10 @@ print()
 
 
 #%% Get X and Y datasets 
+suffix = ''
+
 for Y_featureset_idx in [0]:
-    for X_featureset_idx in [1]:
+    for X_featureset_idx in [1,2]:
         print('X_featureset_idx:', X_featureset_idx, ';  Y_featureset_idx:', Y_featureset_idx)
         XY_fname = f'X{X_featureset_idx}Y{Y_featureset_idx}{suffix}'
         XYarr_dict, XY_df = get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=f'{XY_fname}.csv', pkl_fname=f'{XY_fname}.pkl', shuffle_data=True, remove_cols_w_nan_thres=0.1)

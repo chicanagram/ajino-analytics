@@ -187,7 +187,7 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
     cmap = getattr(plt.cm, c)
     
     # get array size and xy labels
-    data = array.copy()
+    data = array.astype(float)
     ny,nx = data.shape
     
     # get row and column labels

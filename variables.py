@@ -933,6 +933,26 @@ model_params = {
     'galactosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}],
     }
 },
+'X2Y0':{
+'randomforest': {
+    'Titer (mg/L)_14': [{'model_type': 'randomforest', 'n_estimators': 40}],
+    'mannosylation_14': [{'model_type': 'randomforest', 'n_estimators': 80}],
+    'fucosylation_14': [{'model_type': 'randomforest', 'n_estimators': 40}],
+    'galactosylation_14': [{'model_type': 'randomforest', 'n_estimators': 20}],
+    },
+'plsr' : {
+    'Titer (mg/L)_14': [{'model_type': 'plsr', 'n_components':10}],
+    'mannosylation_14': [{'model_type': 'plsr', 'n_components':12}],
+    'fucosylation_14': [{'model_type': 'plsr', 'n_components':10}],
+    'galactosylation_14': [{'model_type': 'plsr', 'n_components':10}],
+    },
+'lasso': {
+    'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':5}],
+    'mannosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}],
+    'fucosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}],
+    'galactosylation_14': [{'model_type': 'lasso', 'max_iter':50000, 'alpha':0.05}],
+    }
+},
 
 'X0Y0_avg':{
 'randomforest': {

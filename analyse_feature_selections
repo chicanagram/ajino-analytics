@@ -10,21 +10,146 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import OrderedDict
-from variables import sort_list
+from variables import sort_list, yvar_list_key, xvar_list_dict
 from model_utils import plot_feature_importance_heatmap, plot_feature_importance_barplots, order_features_by_importance
 from plot_utils import figure_folder, convert_figidx_to_rowcolidx, heatmap
 from get_datasets import data_folder, get_XYdata_for_featureset
 
+#%% Aggregate feature selection rankings
+
+# overall variables
+X_featureset_idx, Y_featureset_idx = 2, 0
+dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+dataset_suffix = ''
+xvar_list = xvar_list_dict[X_featureset_idx]
+kfold_suffix = '_k=0'
+apply_masking = False
+feature_num_thres = 20
+
+# 1. feature selection methods
+feature_selection_method_list = ['sfs-forward', 'sfs-backward', 'rfe']
+model_type_list_0 = ['randomforest', 'plsr']
+files_to_read_0 = [f'model_metrics_{feature_selection_method}_{dataset_name}{dataset_suffix}_{model_type}{kfold_suffix}.csv' for model_type in model_type_list_0 for feature_selection_method in feature_selection_method_list]
+heatmap_rows_0 = [f.replace('model_metrics_','').replace(f'_{dataset_name}{dataset_suffix}','').replace('.csv','').replace(kfold_suffix,'') for f in files_to_read_0]
+print(*heatmap_rows_0, sep='\n')
+
+# 2. feature importance scores
+model_type_list_1 = ['randomforest', 'plsr', 'lasso']
+files_to_read_1 = [f'model_feature_importance_{dataset_name}{dataset_suffix}{kfold_suffix}.csv']
+heatmap_rows_1 = [f'coef_score_{model_type}' for model_type in model_type_list_1]
+print(*heatmap_rows_1, sep='\n')
+
+# 3. substrate consumption scores
+heatmap_rows_2 = ['corr-p_CQA-vs-nutrient_specific_rate_of_change']
+
+# 4. cross-correlation-based clustering groups
+
+
+
+# initialize dict for storing results
+heatmap_rows = heatmap_rows_0 + heatmap_rows_1 + heatmap_rows_2
+feature_metrics_by_yvar = {yvar: pd.DataFrame(columns=xvar_list, index=heatmap_rows) for yvar in yvar_list_key}
+
+
+##############################################
+# add results from feature selection methods #
+##############################################
+for f, row in zip(files_to_read_0, heatmap_rows_0):
+    print(f)
+    for yvar in yvar_list_key: 
+        print(f'***** {yvar} *****')
+        df = pd.read_csv(f'{data_folder}{f}', index_col=0)
+        df_yvar = df[df.yvar==yvar]
+    
+        # sequential addition
+        if f.find('sfs-forward')>1:
+            xvar_list_ordered = df_yvar.xvar_to_add.tolist()
+            xvar_list_ordered = xvar_list_ordered + [xvar for xvar in xvar_list if xvar not in xvar_list_ordered]
+            xvar_list_ordered.reverse()
+            
+        # sequential elimination
+        elif f.find('sfs-backward')>-1 or f.find('rfe')>-1:
+            xvar_list_ordered_ = df_yvar.xvar_to_drop.tolist()
+            xvar_list_ordered = []
+            for xvar in xvar_list_ordered_:
+                if xvar.find(', ')>-1:
+                    xvar_sublist = xvar.split(', ')
+                    xvar_sublist.reverse()
+                else:
+                    xvar_sublist = [xvar]
+                xvar_list_ordered += xvar_sublist
+        
+        print(len(xvar_list_ordered))
+        print(xvar_list_ordered)
+        print()
+        
+        for i, xvar in enumerate(xvar_list_ordered):
+            feature_metrics_by_yvar[yvar].loc[row, xvar] = i
+            
+###################################################           
+# add results from model fit feature coefficients #
+###################################################   
+for f in files_to_read_1:
+    print(f)
+    for model_type in model_type_list_1:
+        row = f'coef_score_{model_type}'
+        for yvar in yvar_list_key: 
+            print(f'***** {model_type}, {yvar} *****')
+            df = pd.read_csv(f'{data_folder}{f}', index_col=0)
+            df_modeltype_yvar = df[(df.yvar==yvar) & (df.model_type==model_type)].iloc[0,2:].to_numpy()
+            feature_metrics_by_yvar[yvar].loc[row, :] = df_modeltype_yvar
+
+
+#############################################################     
+# add substrate consumption rate correlations with D14 CQAs #
+#############################################################   
+nutrient_specific_rate_df = pd.read_csv(f'{data_folder}corr_cqa_nutrient_specific_rate_of_change.csv', index_col=0)
+row = 'corr-p_CQA-vs-nutrient_specific_rate_of_change'
+for yvar in yvar_list_key:
+    for xvar in xvar_list: 
+        xvar_base = xvar.replace('_feed', '').replace('_basal', '')
+        if xvar_base in nutrient_specific_rate_df and xvar_base not in ['DO', 'feed %', 'feed vol', 'pH']:
+            feature_metrics_by_yvar[yvar].loc[row, xvar] = np.abs(nutrient_specific_rate_df.loc[yvar.replace('_14',''), xvar_base])*len(xvar_list)
+    
+#############################
+# process and plot heatmaps #
+#############################
+for yvar in yvar_list_key:
+            
+    # apply mask --> set all values less than (p_init - NUM_FEATURE_THRES) to p_init - NUM_FEATURE_THRES (i.e. assume we can't distinguish between their importances)
+    if apply_masking:
+        thres_score = len(xvar_list)-feature_num_thres
+        feature_metrics_by_yvar[yvar][feature_metrics_by_yvar[yvar]<=thres_score] = thres_score
+        
+    arr = plot_feature_importance_heatmap(feature_metrics_by_yvar[yvar], xvar_list, heatmap_rows, logscale_cmap=False, scale_vals=False, annotate=None, get_clustermap=False, figtitle=f'{yvar}: feature importances based on various selection methods', savefig=None)
+    
+#########################################################
+# plot heatmaps, features ordered by collinear clusters #
+#########################################################  
+cluster_df_sorted = pd.read_csv(f'{data_folder}features_by_cluster_corrdist.csv', index_col=0)
+xvar_list_sorted_by_clusters = cluster_df_sorted.columns.tolist()
+
+for yvar in yvar_list_key:
+            
+    # apply mask --> set all values less than (p_init - NUM_FEATURE_THRES) to p_init - NUM_FEATURE_THRES (i.e. assume we can't distinguish between their importances)
+    if apply_masking:
+        thres_score = len(xvar_list)-feature_num_thres
+        feature_metrics_by_yvar[yvar][feature_metrics_by_yvar[yvar]<=thres_score] = thres_score
+        
+    df_sorted = feature_metrics_by_yvar[yvar].copy()[xvar_list_sorted_by_clusters]
+    arr = plot_feature_importance_heatmap(df_sorted, xvar_list_sorted_by_clusters, heatmap_rows, logscale_cmap=False, scale_vals=False, annotate=None, get_clustermap=False, figtitle=f'{yvar}: feature importances based on various selection methods', savefig=None)
+    
 
 #%% OVERALL Feature importance analysis
-featureset_list = [(0,0), (1,0)]
+featureset_list = [(2,0)]
+dataset_suffix = ''
 models_to_eval_list = ['randomforest','plsr', 'lasso'] 
 
 # get relevant dataset with chosen features
 for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
     # get data
     dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-    Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder)
+    Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, data_folder=data_folder, dataset_suffix=dataset_suffix)
  
     # open saved CSVs containing metrics, feature coefficient, feature scoring data
     model_metrics_df = pd.read_csv(f'{data_folder}model_metrics_{dataset_name}.csv')
@@ -253,9 +378,4 @@ heatmap(top_feature_occurrence_norm_arr, c='viridis', ax=ax, cbar_kw={}, cbarlab
 fig.savefig(f'{figure_folder}top_feature_occurrences_keyCQAsindiv_datasetscombined.png', bbox_inches='tight')
 plt.show()    
 
-
-#%% Calculate feature importance fingerprint similarity metric
-
-
-        
         

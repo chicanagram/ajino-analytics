@@ -7,14 +7,11 @@ Created on Wed Jul 24 21:02:36 2024
 """
 import numpy as np
 import pandas as pd
-from autogluon.tabular import TabularPredictor
-import pickle
-import matplotlib.pyplot as plt
 from variables import model_params, yvar_list_key, xvar_sublist_sets_bymodeltype
 from model_utils import split_data_to_trainval_test, eval_model_over_params, plot_model_param_results, evaluate_model_on_train_test_data, get_feature_importances, plot_feature_importance_barplots_bymodel, get_feature_coefficients, order_features_by_coefficient_importance, plot_model_metrics, plot_scatter_train_test_predictions, order_list_by_frequencies, plot_feature_importance_heatmap
 from plot_utils import figure_folder
 from get_datasets import data_folder, get_XYdata_for_featureset
-from featureselection_SFS import run_sfs
+from feature_selection_utils import run_sfs_forward, run_sfs_backward, run_rfe
 
 def reformat_model_params_dict(model_params_opt):
     for dataset_name_wsuffix in model_params_opt:
@@ -32,7 +29,7 @@ def get_filtered_Xdata(X_trainval, X_test, featureset_suffix, featureset_bymodel
     print(f'X_trainval size after feature selection: n={X_trainval_.shape[0]}, p={X_trainval_.shape[1]}')       
     return xvar_list_, X_trainval_, X_test_         
 
-def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval, dataset_name, dataset_suffix, kfold_suffix=''):
+def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval, dataset_name, dataset_suffix, kfold_suffix='', save_results=False):
     modelparam_metrics_df = []
     feature_coef_df = []
     feature_importance_df = []
@@ -92,7 +89,7 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
     # plot feature prominences
     feature_prominence_df = feature_importance_df.copy()
     feature_prominence_df.iloc[:,2:] = feature_importance_df.iloc[:,2:].to_numpy()*np.abs(feature_coef_df.iloc[:,2:].to_numpy())
-    savefig = f'feature_prominence_{dataset_name}{dataset_suffix}_k={k}' if save_results else None
+    savefig = f'feature_prominence_{dataset_name}{dataset_suffix}{kfold_suffix}' if save_results else None
     figtitle = f'Feature prominences ({dataset_name}{dataset_suffix}, k={k})'
     plot_feature_importance_barplots_bymodel(feature_prominence_df, yvar_list=yvar_list, xvar_list=xvar_list, model_list=models_to_eval_list, order_by_feature_importance=False, label_xvar_by_indices=True, savefig=savefig, figtitle=figtitle)
     
@@ -101,19 +98,18 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
 #%% 
 
 # load data
-featureset_list =  [(1,0)]
+featureset_list =  [(2,0)]
 dataset_suffix = ''
-# featureset_suffix = ''
-# featureset_suffix = '_fs1'
-featureset_suffix = '_sfs'
+
 f = 1
 n_splits = 10
 yvar_list = yvar_list_key.copy()
 # yvar_list = yvar_list_key.copy()[:2]
 scoring = 'mae'
 optimize_model_params = False
-optimize_feature_subset = True
-save_results = False
+optimize_feature_subset = 'sfs-backward' # None
+featureset_suffix = '_sfs-backward'
+save_results = True
 print_testres_on_each_fold = True
 if optimize_model_params:
     model_params_to_eval = [
@@ -125,10 +121,10 @@ if optimize_model_params:
     
 else: 
     model_params_to_eval = None
-    models_to_eval_list = ['plsr']# ['randomforest', 'plsr'] # ['randomforest', 'plsr', 'lasso'] # ['lasso'] # 
+    models_to_eval_list = ['plsr']# ['plsr', 'randomforest'] #  ['randomforest', 'plsr', 'lasso'] #['lasso'] # 
     model_params_opt = model_params.copy()
     
-if not optimize_feature_subset:  
+if optimize_feature_subset is None:  
     featureset_bymodeltype = xvar_sublist_sets_bymodeltype.copy()
     
     
@@ -163,14 +159,25 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             print('\n************************************************')
             print(f'Performing hyperparameter search on Fold {k}...')
             print('************************************************')            
-            model_params_opt, modelparam_metrics_df = run_modelparam_optimization(Y_trainval, X_trainval, yvar_list, xvar_list_all, model_params_to_eval, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}')
+            model_params_opt, modelparam_metrics_df = run_modelparam_optimization(Y_trainval, X_trainval, yvar_list, xvar_list_all, model_params_to_eval, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}', save_results=save_results)
             
-        if optimize_feature_subset and k==0: 
-            print('\n**************************************************')
-            print(f'Performing feature selection search on Fold {k}...')
-            print('**************************************************')
-            res, featureset_bymodeltype = run_sfs(Y_trainval, X_trainval, yvar_list_key, xvar_list_all, models_to_eval_list, dataset_name, dataset_suffix, xvar_idx_end=None, featureset_suffix=featureset_suffix)
+        if optimize_feature_subset is not None and k==0: 
+            print('\n*********************************************************************************')
+            print(f'Performing feature selection ({optimize_feature_subset}) search on Fold {k}...')
+            print('***********************************************************************************')
             
+            if optimize_feature_subset=='sfs-forward':
+                featureset_suffix = '_sfs-forward'
+                res, featureset_bymodeltype = run_sfs_forward(Y_trainval, X_trainval, yvar_list_key, xvar_list_all, models_to_eval_list, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}', xvar_idx_end=None, featureset_suffix=featureset_suffix)
+            
+            elif optimize_feature_subset=='sfs-backward':
+                featureset_suffix = '_sfs-backward'    
+                res, featureset_bymodeltype = run_sfs_backward(Y_trainval, X_trainval, yvar_list_key, xvar_list_all, models_to_eval_list, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}', xvar_idx_end=None, featureset_suffix=featureset_suffix)
+
+            elif optimize_feature_subset=='rfe':
+                featureset_suffix = '_rfe'    
+                res, featureset_bymodeltype = run_rfe(Y_trainval, X_trainval, yvar_list_key, xvar_list_all, models_to_eval_list, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}', xvar_idx_end=None, featureset_suffix='_rfe')
+                
         print('\n************************************************')
         print(f'Performing train/test evaluation on Fold {k}...')
         print('************************************************')
@@ -252,8 +259,8 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
 
 #%% plot feature importance and prominence heatmaps
 k=0
-feature_coef_df = pd.read_csv(f'{data_folder}model_feature_coef_{dataset_name}{dataset_suffix}_{k}.csv', index_col=0)
-feature_importance_df = pd.read_csv(f'{data_folder}model_feature_importance_{dataset_name}{dataset_suffix}_{k}.csv', index_col=0)
+feature_coef_df = pd.read_csv(f'{data_folder}model_feature_coef_{dataset_name}{dataset_suffix}_k={k}.csv', index_col=0)
+feature_importance_df = pd.read_csv(f'{data_folder}model_feature_importance_{dataset_name}{dataset_suffix}_k={k}.csv', index_col=0)
 yvar_labels = [(x[1],x[2]) for x in list(feature_importance_df[['yvar','model_type']].to_records())]
 imp_arr = feature_importance_df.iloc[:,2:].to_numpy()
 coef_arr = feature_coef_df.iloc[:,2:].to_numpy()
