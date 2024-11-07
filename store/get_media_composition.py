@@ -8,9 +8,7 @@ Created on Tue Jul 23 15:56:08 2024
 
 import pandas as pd
 import numpy as np
-import pickle
 from variables import data_folder, media_rawdata_dict
-from get_raw_data import append_to_datadict, data_folder
 
 #%% read sheet: 'Media composition'
 

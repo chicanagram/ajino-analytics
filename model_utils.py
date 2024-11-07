@@ -87,8 +87,39 @@ def adjusted_loocv_with_scoring(X, y, model_dict, scoring='mae', scale_data=Fals
         })
     return model_dict
 
+def kfold_cv_with_scoring(X, y, model_dict, scoring='mae', n_splits=8, scale_data=False):
+    from sklearn.model_selection import KFold
+    n = len(y)
+    ymean = np.mean(y)
+    ypred_cv = np.zeros((n,))
+    regr = model_dict['model']
 
-def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='mae', scale_data=False, print_output=True):
+    scores=[]
+    kFold=KFold(n_splits=n_splits, shuffle=False)
+    for train_index, test_index in kFold.split(X):
+        X_train, X_test, y_train, y_test = X[train_index], X[test_index], y[train_index], y[test_index]
+        regr.fit(X_train, y_train)
+        ypred_test = regr.predict(X_test)
+        ypred_cv[test_index] = ypred_test
+        scores.append(get_score(y_test, ypred_test, scoring))
+ 
+    # calculate mean MAE test score across k folds
+    score = round(np.mean(np.array(scores)),3)
+    score_norm = round(score/ymean, 3)
+    # calculate R2 score for ypred_loocv
+    r2 = round(r2_score(y, ypred_cv),2)
+    
+    # update model dict
+    model_dict.update({
+        f'{scoring}_cv':score, 
+        f'{scoring}_norm_cv': score_norm,
+        'r2_cv': r2,
+        'ypred_cv': ypred_cv
+        })
+    return model_dict
+
+
+def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='mae', cv=None, scale_data=False, print_output=True):
     
     ymean = np.mean(y)
     model_params = []
@@ -112,7 +143,11 @@ def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='ma
         model_dict.update({'model':model})
         
         # perform cross-validation
-        model_dict = adjusted_loocv_with_scoring(X,y, model_dict, scoring=scoring, scale_data=scale_data)
+        if cv is None:
+            model_dict = adjusted_loocv_with_scoring(X,y, model_dict, scoring=scoring, scale_data=scale_data)
+        else: 
+            model_dict = kfold_cv_with_scoring(X,y, model_dict, scoring=scoring, n_splits=cv, scale_data=scale_data)
+            
         
         # get CV metrics (MAE score, R2)
         cv_score = model_dict[f'{scoring}_cv'] 
@@ -425,7 +460,7 @@ def sort_list(lst):
     return lst
 
 
-def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, annotate=None, get_clustermap=True, figtitle=None, savefig=None):
+def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, annotate=None, get_clustermap=False, figtitle=None, savefig=None, return_fig_handle=False):
 
     # get array data from feature dataframe
     arr = heatmap_df.to_numpy()
@@ -453,7 +488,11 @@ def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_c
         cl.fig.suptitle(f'Cluster map of {figtitle}', fontsize=16) 
         # plt.title(f'Cluster map of {figtitle}', fontsize=16, loc='center')
         plt.savefig(f"{figure_folder}{savefig}_clustermap.png",  bbox_inches='tight') 
-    return arr
+    
+    if return_fig_handle:
+        return arr, (fig, ax)
+    else:
+        return arr
 
 
 def plot_feature_importance_barplots_bymodel(feature_importance_df, yvar_list=None, xvar_list=None, model_list=None, order_by_feature_importance=False, label_xvar_by_indices=True, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, savefig=None, figtitle=None):
@@ -570,7 +609,7 @@ def order_features_by_importance(feature_scoring_agg_yvar, xvar_list):
     return overall_feature_importance_yvar, feature_scoring_yvar, feature_ordering_yvar
 
 
-def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}):
+def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))+1
     legenditems_count = 0
@@ -583,9 +622,13 @@ def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2
             model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
             ## R2
             legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
-            legenditems_count += 1
+            legenditems_count += 1 
             legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]], width=w, label=model_type, color=c)
             legenditems_count += 1
+            if annotate_vals:
+                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
+                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[1]],2), (xtickpos[i]+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]]+0.015))
+
             ## MAE_norm
             ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
             ax[1].bar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt['mae_norm'+suffix_list[1]], width=w, label=model_type, color=c)
@@ -615,8 +658,50 @@ def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2
         fig.savefig(savefig, bbox_inches='tight')
     plt.show()
 
+def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
+    fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
+    xtickpos = np.arange(len(yvar_list))+1
+    legenditems_count = 0
+    legenditems_dict = {}
+    for i, yvar in enumerate(yvar_list):
+        for k, model_type in enumerate(models_to_eval_list):
+            c = model_cmap[model_type]
+            w = barwidth / len(models_to_eval_list)
+            xtickoffset = -w*len(models_to_eval_list)/2 + 0.5*w + k*w
+            model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
+            ## R2
+            legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c)
+            if annotate_vals:
+                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
+            legenditems_count += 1
+            ## MAE_norm
+            ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c)
+            if plot_errors: 
+                ## R2
+                ax[0].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], yerr=model_metrics_df_filt['r2'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+                ## MAE_norm
+                ax[1].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], yerr=model_metrics_df_filt['mae_norm'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+    
+    for k in range(nrows): 
+        ax[k].set_xticks(xtickpos+xtickoffset/2, yvar_list, fontsize=20)
+        
+    # set ylim for MAE plots
+    ymax_mae = np.max(model_metrics_df['mae_norm'+suffix_list[0]].to_numpy())
+    ax[0].set_ylim([0,1])
+    ax[1].set_ylim([0,ymax_mae*1.5])
+    ax[0].set_ylabel('R2', fontsize=20)
+    ax[1].set_ylabel('MAE, normalized', fontsize=20)
+    ymax = ax.flatten()[0].get_position().ymax
+    legend = [f'{model_type}_{train_or_cv}' for model_type in models_to_eval_list for train_or_cv in ['cv']]
+    plt.legend([v for k,v in legenditems_dict.items()], legend, fontsize=16)
+    if figtitle is not None:
+        plt.suptitle(figtitle, y=ymax*1.03, fontsize=24)    
+    if savefig is not None:
+        fig.savefig(savefig, bbox_inches='tight')
+    plt.show()
 
-def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}):
+
+def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))*2+1
     for i, yvar in enumerate(yvar_list):
@@ -629,6 +714,8 @@ def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list
                 model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
                 ## R2
                 ax[0].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2'], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
+                if annotate_vals:
+                    ax[0].annotate(round(model_metrics_df_filt['r2'],2), (xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2']))
                 ax[0].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['r2_cv'], width=w, label=model_type, color=c)
                 ## MAE_norm
                 ax[1].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['mae_norm_train'], width=w, label=model_type, color=c, alpha=0.5, hatch='/')

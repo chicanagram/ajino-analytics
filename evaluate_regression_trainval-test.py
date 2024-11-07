@@ -8,7 +8,7 @@ Created on Wed Jul 24 21:02:36 2024
 import numpy as np
 import pandas as pd
 from variables import model_params, yvar_list_key, xvar_sublist_sets_bymodeltype
-from model_utils import split_data_to_trainval_test, eval_model_over_params, plot_model_param_results, evaluate_model_on_train_test_data, get_feature_importances, plot_feature_importance_barplots_bymodel, get_feature_coefficients, order_features_by_coefficient_importance, plot_model_metrics, plot_scatter_train_test_predictions, order_list_by_frequencies, plot_feature_importance_heatmap
+from model_utils import split_data_to_trainval_test, eval_model_over_params, plot_model_param_results, evaluate_model_on_train_test_data, get_feature_importances, plot_feature_importance_barplots_bymodel, get_feature_coefficients, order_features_by_coefficient_importance, plot_model_metrics, plot_model_metrics_cv, plot_scatter_train_test_predictions, order_list_by_frequencies, plot_feature_importance_heatmap
 from plot_utils import figure_folder
 from get_datasets import data_folder, get_XYdata_for_featureset
 from feature_selection_utils import run_sfs_forward, run_sfs_backward, run_rfe
@@ -98,17 +98,16 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
 #%% 
 
 # load data
-featureset_list =  [(2,0)]
+featureset_list = [(1,0)] # [(4,0)] # 
 dataset_suffix = ''
-
 f = 1
 n_splits = 10
 yvar_list = yvar_list_key.copy()
 # yvar_list = yvar_list_key.copy()[:2]
 scoring = 'mae'
-optimize_model_params = False
-optimize_feature_subset = 'sfs-backward' # None
-featureset_suffix = '_sfs-backward'
+optimize_model_params = True
+optimize_feature_subset = False #'sfs-backward' # None # 
+featureset_suffix = '' # '_sfs-backward'
 save_results = True
 print_testres_on_each_fold = True
 if optimize_model_params:
@@ -121,11 +120,12 @@ if optimize_model_params:
     
 else: 
     model_params_to_eval = None
-    models_to_eval_list = ['plsr']# ['plsr', 'randomforest'] #  ['randomforest', 'plsr', 'lasso'] #['lasso'] # 
+    models_to_eval_list = ['randomforest', 'plsr', 'lasso'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
     model_params_opt = model_params.copy()
     
 if optimize_feature_subset is None:  
     featureset_bymodeltype = xvar_sublist_sets_bymodeltype.copy()
+    
     
     
 #%%
@@ -161,7 +161,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             print('************************************************')            
             model_params_opt, modelparam_metrics_df = run_modelparam_optimization(Y_trainval, X_trainval, yvar_list, xvar_list_all, model_params_to_eval, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}', save_results=save_results)
             
-        if optimize_feature_subset is not None and k==0: 
+        if optimize_feature_subset not in [None, False] and k==0: 
             print('\n*********************************************************************************')
             print(f'Performing feature selection ({optimize_feature_subset}) search on Fold {k}...')
             print('***********************************************************************************')
@@ -206,18 +206,31 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                     coef_lists_bymodelyvar[model_type][yvar] += xvar_list_sorted
                 metrics.update({'k':k, 'yvar':yvar, 'xvar_sorted': ', '.join(list(xvar_list_sorted))})
                 kfold_metrics.append(metrics)
+                
                 # get test predictions
                 ypred_test_bymodel[model_type][test_idx,i] = metrics['ypred_test']
             
+    print('\n*****************************************')
+    print('Getting train performance on full dataset')
+    print('*******************************************')
     # get train predictions using a model trained on the full dataset
     for model_type in models_to_eval_list:   
+        print(model_type)
         for i, yvar in enumerate(yvar_list): 
+            print(yvar)
             y = Y[:,i]
             if featureset_suffix != '':
                 xvar_list_, X_, X_  = get_filtered_Xdata(X.copy(), X.copy(), featureset_suffix, featureset_bymodeltype)
+            else: 
+                xvar_list_ = xvar_list_all.copy()
+                X_ = X.copy()
             model_dict = model_params_opt[dataset_name_wsuffix][model_type][yvar][0]
             metrics_train, model = evaluate_model_on_train_test_data(X_, y, X_, y, model_dict, scoring=scoring, print_res=print_testres_on_each_fold)
             ypred_train_bymodel[model_type][:,i] = metrics_train['ypred_test']
+            
+    print('\n********************')
+    print('PLOT OVERALL RESULTS')
+    print('**********************')    
     # plot predictions as scatter
     savefig = f'{figure_folder}modelpredictions_scatterplots_{dataset_name}{dataset_suffix}{featureset_suffix}.png'
     plot_scatter_train_test_predictions(Y[:,:len(yvar_list)], ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_eval_list, savefig=savefig)
@@ -246,7 +259,8 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     # plot kfold results
     figtitle = f'Model evaluation metrics for {dataset_name}{dataset_suffix}{featureset_suffix}, {n_splits}-fold CV'
     savefig = f'{figure_folder}modelmetrics_allselectedmodels_keyYvar_{dataset_name}{dataset_suffix}{featureset_suffix}' if save_results else None
-    plot_model_metrics(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True)
+    plot_model_metrics(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True, annotate_vals=True)
+    plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=True, annotate_vals=True)
     
     # print all lasso coefficients selected for each yvar
     if 'lasso' in models_to_eval_list:
@@ -259,17 +273,33 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
 
 #%% plot feature importance and prominence heatmaps
 k=0
-feature_coef_df = pd.read_csv(f'{data_folder}model_feature_coef_{dataset_name}{dataset_suffix}_k={k}.csv', index_col=0)
-feature_importance_df = pd.read_csv(f'{data_folder}model_feature_importance_{dataset_name}{dataset_suffix}_k={k}.csv', index_col=0)
-yvar_labels = [(x[1],x[2]) for x in list(feature_importance_df[['yvar','model_type']].to_records())]
-imp_arr = feature_importance_df.iloc[:,2:].to_numpy()
-coef_arr = feature_coef_df.iloc[:,2:].to_numpy()
+drop_process_features = True
 
-# plot coef heatmap
-heatmap_df = pd.DataFrame(imp_arr, columns=xvar_list_all, index=yvar_labels)
-arr = plot_feature_importance_heatmap(heatmap_df, xvar_list_all, yvar_labels, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=None, savefig=None)
+for (X_featureset_idx, Y_featureset_idx) in featureset_list: 
+    # get data
+    dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+    dataset_name_wsuffix = dataset_name + dataset_suffix
+    Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
+    feature_coef_df = pd.read_csv(f'{data_folder}model_feature_coef_{dataset_name}{dataset_suffix}_k={k}.csv', index_col=0)
+    feature_importance_df = pd.read_csv(f'{data_folder}model_feature_importance_{dataset_name}{dataset_suffix}_k={k}.csv', index_col=0)
+    yvar_labels = [(x[1],x[2]) for x in list(feature_importance_df[['yvar','model_type']].to_records())]
+    imp_arr = feature_importance_df.iloc[:,2:].to_numpy()
+    coef_arr = feature_coef_df.iloc[:,2:].to_numpy()
+    
+    # plot coef heatmap     
+    heatmap_df = pd.DataFrame(imp_arr, columns=xvar_list_all, index=yvar_labels)
+    if drop_process_features: 
+        arr = plot_feature_importance_heatmap(heatmap_df.iloc[:,:-3], np.array(xvar_list_all)[:-3], yvar_labels, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'Feature importances (various models) for Fold={k}', savefig=f'feature_importance_heatmap_{dataset_name}{dataset_suffix}_keyCQAs_k={k}.png')
+    else: 
+        arr = plot_feature_importance_heatmap(heatmap_df, xvar_list_all, yvar_labels, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'Feature importances (various models) for Fold={k}', savefig=f'feature_importance_heatmap_{dataset_name}{dataset_suffix}_k={k}.png')
+    
+    # plot prominence heatmap
+    # arr = imp_arr*np.abs(coef_arr)
+    arr = np.abs(coef_arr)
+    heatmap_df = pd.DataFrame(arr, columns=xvar_list_all, index=yvar_labels)
+    if drop_process_features: 
+        arr = plot_feature_importance_heatmap(heatmap_df.iloc[:,:-3], np.array(xvar_list_all)[:-3], yvar_labels, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'Feature coefficients (various models) for Fold={k}', savefig=f'feature_coef_heatmap_{dataset_name}{dataset_suffix}_keyCQAs_k={k}.png')
+    else: 
+        arr = plot_feature_importance_heatmap(heatmap_df, xvar_list_all, yvar_labels, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'Feature coefficients (various models) for Fold={k}', savefig=f'feature_coef_heatmap_{dataset_name}{dataset_suffix}_k={k}.png')
+    
 
-# plot prominence heatmap
-arr = imp_arr*np.abs(coef_arr)
-heatmap_df = pd.DataFrame(arr, columns=xvar_list_all, index=yvar_labels)
-arr = plot_feature_importance_heatmap(heatmap_df, xvar_list_all, yvar_labels, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=None, savefig=None)

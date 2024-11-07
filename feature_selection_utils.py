@@ -79,8 +79,8 @@ def plot_feature_selection_metrics(res_model, p_init, yvar_list, figtitle=None, 
     
 #%% SFS-forward
 
-def run_sfs_forward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_name, dataset_suffix, kfold_suffix='', xvar_idx_end=None, featureset_suffix='_sfs-forward'):
-        
+def run_sfs_forward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_name, dataset_suffix, kfold_suffix='', xvar_idx_end=None, featureset_suffix='_sfs-forward', cv=None):
+    
     feature_selection_method='sfs-forward'
     p_init = X_init.shape[1]
     if xvar_idx_end is None:
@@ -96,6 +96,7 @@ def run_sfs_forward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, da
         print(model_type)
         
         for i, yvar in enumerate(yvar_list):
+            print(yvar)
             # get y and model parameters
             res_model_yvar = []
             y = Y[:,i]
@@ -123,7 +124,7 @@ def run_sfs_forward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, da
                     X_ = X_init[:, np.array(xvar_idxs_)]
                     
                     # fit model with full feature set
-                    model_list, metrics = fit_model_with_cv(X_, y, yvar, model_list, plot_predictions=False, print_output=False, scale_data=True)
+                    model_list, metrics = fit_model_with_cv(X_, y, yvar, model_list, plot_predictions=False, print_output=False, cv=cv, scale_data=True)
                     metrics.update({'xvar_to_add':xvar, 'xvar_list':', '.join(xvar_list_), 'num_features':k})
                     model_metrics_df_.append(metrics)
                     
@@ -192,7 +193,7 @@ def get_feature_to_drop(model, xvar_list, model_type):
     return idx_to_drop, xvar_to_drop
 
     
-def run_sfs_backward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_name, dataset_suffix, kfold_suffix='', xvar_idx_end=None, featureset_suffix='_sfs-backward'):
+def run_sfs_backward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_name, dataset_suffix, kfold_suffix='', xvar_idx_end=None, featureset_suffix='_sfs-backward', cv=None):
     
     from sklearn.feature_selection import SequentialFeatureSelector
     feature_selection_method='sfs-backward'
@@ -235,7 +236,7 @@ def run_sfs_backward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, d
                     model = PLSRegression(n_components=min(n_components, X.shape[1]-1))
                     
                 # perform SFS, backward
-                sfs = SequentialFeatureSelector(model, n_features_to_select=p_init-k, tol=None, direction='backward', scoring='r2', cv=5, n_jobs=None)
+                sfs = SequentialFeatureSelector(model, n_features_to_select=p_init-k, tol=None, direction='backward', scoring='r2', cv=cv, n_jobs=None)
                 sfs.fit(X, y)
                 idx_to_drop = np.argwhere(sfs.get_support()*1==0)[0][0]
                 xvar_to_drop = xvar_list[idx_to_drop]
@@ -245,7 +246,7 @@ def run_sfs_backward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, d
                 print(f'{k}/{p+k}', xvar_to_drop, end=': ')
 
                 # evaluate model metrics after dropping feature
-                model_list, metrics = fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='mae', scale_data=True, print_output=False)
+                model_list, metrics = fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='mae', cv=cv, scale_data=True, print_output=False)
                 print(metrics['r2_train'], metrics['r2_cv'])
                 # update dataset
                 metrics.update({
@@ -299,7 +300,7 @@ def run_sfs_backward(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, d
 
 #%% Recursive Feature Elimination
 
-def run_rfe(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_name, dataset_suffix, kfold_suffix='', xvar_idx_end=None, featureset_suffix='_rfe'):    
+def run_rfe(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_name, dataset_suffix, kfold_suffix='', xvar_idx_end=None, featureset_suffix='_rfe', cv=None):    
     
     feature_selection_method = 'rfe'
     p_init = X_init.shape[1]
@@ -324,7 +325,7 @@ def run_rfe(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_na
             p = p_init
             xvar_list = xvar_list_init.copy()
             # fit model with full feature set
-            model_list, metrics = fit_model_with_cv(X, y, yvar, model_list, plot_predictions=False, scale_data=True)
+            model_list, metrics = fit_model_with_cv(X, y, yvar, model_list, plot_predictions=False, cv=cv, scale_data=True)
             # get feature to drop
             idx_to_drop, xvar_to_drop = get_feature_to_drop(model_list[0]['model'], xvar_list, model_type) 
             # update dataset
@@ -341,7 +342,7 @@ def run_rfe(Y, X_init, yvar_list, xvar_list_init, models_to_evaluate, dataset_na
                 xvar_list = [xvar_list[idx] for idx in idx_to_keep]
                     
                 # evaluate model with dropped feature
-                model_list, metrics = fit_model_with_cv(X, y, yvar, model_list, plot_predictions=False)
+                model_list, metrics = fit_model_with_cv(X, y, yvar, model_list, plot_predictions=False, cv=cv)
                 # get feature to drop
                 idx_to_drop, xvar_to_drop = get_feature_to_drop(model_list[0]['model'], xvar_list, model_type)
                 

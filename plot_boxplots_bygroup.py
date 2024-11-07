@@ -34,6 +34,37 @@ var_to_plot = [
     'galactosylation'
     ]
 
+#%% Plot scatter of specific pairs of features
+xvar_list = ['feed vol'] 
+yvar_list = ['Titer (mg/L)_14', 'mannosylation_14', 'fucosylation_14', 'galactosylation_14'] 
+feed_list = ['Feed-a', 'Feed-b', 'Feed-c', 'Feed-d', 'Feed-e', 'Feed-f']
+for xvar in xvar_list:
+    for yvar in yvar_list:
+        for feed in feed_list:
+            df_filt = df[(df['Basal medium']=='Basal-A') & (df['Feed medium']==feed)].copy()
+            plt.scatter(df_filt[xvar], df_filt[yvar])
+        plt.legend(feed_list)
+        plt.xlabel(xvar)
+        plt.ylabel(yvar)
+        plt.title(f'{yvar} vs {xvar}')
+        plt.show()
+
+#%% Plot scatter of specific pairs of features
+xvar_list = ['feed %']
+yvar_list = ['feed vol']
+feed_list = ['Feed-a', 'Feed-b', 'Feed-c', 'Feed-d', 'Feed-e', 'Feed-f']
+for xvar in xvar_list:
+    for yvar in yvar_list:
+        for feed in feed_list:
+            df_filt = df[(df['Feed medium']==feed)].copy()
+            plt.scatter(df_filt[xvar], df_filt[yvar])
+        plt.legend(feed_list, loc='lower right')
+        plt.xlabel(xvar)
+        plt.ylabel(yvar)
+        plt.title(f'{yvar} vs {xvar}')
+        plt.show()
+
+
 #%% Effect of Basal A/B/C/D 
 
 primary_effect_to_vary = 'Basal medium'

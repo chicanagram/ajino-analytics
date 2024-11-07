@@ -14,7 +14,8 @@ from variables import data_folder, var_dict_all
 from plot_utils import figure_folder, remove_nandata,convert_figidx_to_rowcolidx, heatmap
 
 #%%
-nutrient_inputs = ['Glucose (g/L)'] + var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
+# nutrient_inputs = ['Glucose (g/L)'] + var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
+nutrient_inputs = var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
 nutrients_calculated_list = []
 
 # load data
@@ -74,12 +75,11 @@ for exp_idx, d_exp in d.items():
         # update overall dict
         d.update({exp_idx: d_exp})
 
-
 # save data
 with open(f'{data_folder}DATA.pkl', 'wb') as handle:
     pickle.dump(d, handle)
     
-#%% visualize relationships
+#%% visualize relationships and get correlations between NSRCs and CQAs
 
 cqas_to_analyse = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation']
 nutrients_to_analyse = nutrients_calculated_list.copy()
