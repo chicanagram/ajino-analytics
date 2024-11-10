@@ -304,7 +304,7 @@ suffix = ''
 remove_cols_w_nan_thres = 0.07 # 0.1 #  0.25 # 
 
 for Y_featureset_idx in [0]:
-    for X_featureset_idx in [1]:
+    for X_featureset_idx in [0]:
     
         print('X_featureset_idx:', X_featureset_idx, ';  Y_featureset_idx:', Y_featureset_idx)
         XY_fname = f'X{X_featureset_idx}Y{Y_featureset_idx}{suffix}'

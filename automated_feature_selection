@@ -15,6 +15,7 @@ from variables import yvar_list_key, xvar_list_dict
 from model_utils import plot_feature_importance_heatmap
 from plot_utils import figure_folder, heatmap
 from get_datasets import data_folder, get_XYdata_for_featureset
+from utils import get_high_correlation_pairs
 
 def parse_model_type(f):
     if f.find('randomforest')>-1:
@@ -61,291 +62,232 @@ def get_contents_of_brackets(string):
             no_more_brackets = True
     return content_list
 
-#%% Aggregate feature selection rankings
-
-# dataset parameters
-base_featureset_idx = 1
-base_dataset_name = f'X{base_featureset_idx}Y0'
-dataset_suffix = ''
-kfold_suffix = ''
-xvar_list = xvar_list_dict[base_featureset_idx]
-
-# display & thresholding
-use_feature_rankings = True
-apply_masking = False
-feature_num_thres = 20
-consumption_score_thres = 0.4
-features_to_drop = ['DO', 'pH', 'feed vol', 'feed %'] # [] # 
-features_to_annotate = ['Asn', 'Gln', 'Ser', 'Thr', 'Met', 'Cys', 'Pro', 'Gly', 'Asp', 'Glu', 'Riboflavin', 'Niacin', 'Pyridoxine', 'Folic acid', 'Ascorbic Acid', 'Tocopherol', 'Biotin', 'Mn', 'Ca', 'Mg', 'Zn', 'Cu', 'Uridine', 'Adenosine ', 'Cytidine ', 'Guanosine ', 'Putrescine ', 'Spermidine ', 'Spermine']
-save_fig = True
-
-# get feature order if sorted by correlations
-sort_heatmap_by_clusters = True
-cluster_df_sorted = pd.read_csv(f'{data_folder}features_by_cluster_corrdist.csv', index_col=0)
-num_clusters_list = [24]
-xvar_list_sorted_by_clusters = [xvar for xvar in cluster_df_sorted.columns.tolist() if xvar not in features_to_drop]
-
-# initialize lists to store fileames and row labels
-heatmap_rows_all = []
-files_to_read_all = []
-dataset_all = []
-
-# mean absolute SHAP values
-dataset_name = 'X1Y0'
-model_type_list = ['randomforest']
-heatmap_rows_all += [f'MC_{model_type}_SHAP' for model_type in model_type_list]
-files_to_read = [f'feature_analysis_SHAP_{dataset_name}{dataset_suffix}_{model_type}.csv' for model_type in model_type_list]
-files_to_read_all += files_to_read
-dataset_all += [dataset_name] * len(files_to_read)
-
-# feature selection methods
-dataset_name = 'X1Y0'
-model_type_list = ['randomforest'] 
-feature_selection_method_list = ['rfe'] # ['rfe', 'sfs-forward']
-files_to_read = [f'model_metrics_{feature_selection_method}_{dataset_name}{dataset_suffix}_{model_type}{kfold_suffix}.csv' for model_type in model_type_list for feature_selection_method in feature_selection_method_list]
-heatmap_rows_all += [f'MC_{model_type}_{feature_selection_method}' for model_type in model_type_list for feature_selection_method in feature_selection_method_list]
-files_to_read_all += files_to_read
-dataset_all += [dataset_name] * len(files_to_read)
-
-# feature importance scores
-dataset_name = 'X1Y0'
-model_type_list = ['randomforest', 'plsr', 'lasso']
-heatmap_rows_all += [f'MC_{model_type}_coef_score' for model_type in model_type_list]
-if use_feature_rankings:
-    files_to_read = [f'model_feature_importance_{dataset_name}{dataset_suffix}{kfold_suffix}.csv']*len(model_type_list)
-else:
-    files_to_read = [f'model_feature_coef_{dataset_name}{dataset_suffix}{kfold_suffix}.csv']*len(model_type_list)
-files_to_read_all += files_to_read
-dataset_all += [dataset_name] * len(files_to_read)
-
-# X-Y correlation scores
-dataset_name = 'X1Y0'
-heatmap_rows_all += [f'MC-vs-CQA_corr']
-files_to_read = [f'{dataset_name}{dataset_suffix}{kfold_suffix}_correlation_matrix.csv']
-files_to_read_all += files_to_read
-dataset_all += [dataset_name] * len(files_to_read)
-
-# feature importance scores
-dataset_name = 'X4Y0'
-model_type_list = ['lasso']
-heatmap_rows_all += [f'NRSC_{model_type}_coef_score' for model_type in model_type_list]
-# files_to_read = [f'model_feature_importance_{dataset_name}{dataset_suffix}{kfold_suffix}.csv']*len(model_type_list)
-files_to_read = [f'model_feature_coef_{dataset_name}{dataset_suffix}{kfold_suffix}.csv']*len(model_type_list)
-files_to_read_all += files_to_read
-dataset_all += [dataset_name] * len(files_to_read)
-
-# substrate consumption scores
-dataset_name = 'X4Y0'
-heatmap_rows_all += ['NSRC-vs-CQA_corr']
-files_to_read = ['corr_cqa_nutrient_specific_rate_of_change.csv']
-files_to_read_all += files_to_read
-dataset_all += [dataset_name] * len(files_to_read)
-
-# initialize dict for storing results
-feature_metrics_by_yvar = {yvar: pd.DataFrame(columns=xvar_list, index=heatmap_rows_all) for yvar in yvar_list_key}
-
-print(heatmap_rows_all)
-print(files_to_read_all)
-
-
-for f, row, dataset_name in zip(files_to_read_all, heatmap_rows_all, dataset_all):
-    print(f,row, dataset_name)
-    ##########################         
-    # add results from SHAP #
-    ########################## 
-    if 'SHAP' in row:
-        model_type = parse_model_type(row)
-        for yvar in yvar_list_key: 
-            print(f'***** {model_type}, {yvar} *****')
-            df = pd.read_csv(f'{data_folder}{f}', index_col=0)
-            # df = pd.read_csv(f'{data_folder}{f}', index_col=0)
-            df_modeltype_yvar = df[(df.yvar==yvar) & (df.model_type==model_type)].iloc[0,2:].to_numpy()
-            # use rankings of mean absolute shap values instead
-            if use_feature_rankings:
-                df_modeltype_yvar = rankdata(df_modeltype_yvar).astype(int)
-            feature_metrics_by_yvar[yvar].loc[row, :] = df_modeltype_yvar
-            
-    ##############################################
-    # add results from feature selection methods #
-    ##############################################
-    if any(x in row for x in ['rfe', 'sfs']):
-        for yvar in yvar_list_key: 
-            print(f'***** {yvar} *****')
-            df = pd.read_csv(f'{data_folder}{f}', index_col=0)
-            df_yvar = df[df.yvar==yvar]
-        
-            # sequential addition
-            if f.find('sfs-forward')>1:
-                xvar_list_ordered = df_yvar.xvar_to_add.tolist()
-                xvar_list_ordered = xvar_list_ordered + [xvar for xvar in xvar_list if xvar not in xvar_list_ordered]
-                xvar_list_ordered.reverse()
-                    
-            # sequential elimination
-            elif f.find('sfs-backward')>-1 or f.find('rfe')>-1:
-                xvar_list_ordered_ = df_yvar.xvar_to_drop.tolist()
-                xvar_list_ordered = []
-                for xvar in xvar_list_ordered_:
-                    if xvar.find(', ')>-1:
-                        xvar_sublist = xvar.split(', ')
-                        xvar_sublist.reverse()
-                    else:
-                        xvar_sublist = [xvar]
-                    xvar_list_ordered += xvar_sublist
-            
-            for i, xvar in enumerate(xvar_list_ordered):
-                feature_metrics_by_yvar[yvar].loc[row, xvar] = i
-                
-    ###################################################           
-    # add results from model fit feature coefficients #
-    ###################################################   
-    if 'coef' in row:
-        model_type = parse_model_type(row)
-        for yvar in yvar_list_key: 
-            print(f'***** {model_type}, {yvar} *****')
-            df = pd.read_csv(f'{data_folder}{f}', index_col=0)
-            df_modeltype_yvar = df[(df.yvar==yvar) & (df.model_type==model_type)].iloc[0,2:].abs().to_numpy()
-            if dataset_name!=base_dataset_name and dataset_name=='X4Y0':
-                dfrow_to_adapt = pd.Series(df_modeltype_yvar, index=df.columns.to_numpy()[2:])
-                dfrow_final = adapt_dfrow(dfrow_to_adapt, input_suffix='_NSRC', output_suffix=['_basal', '_feed'], xvar_list_final=xvar_list, xvar_to_ignore=['DO', 'feed %', 'feed vol', 'pH'])                
-                feature_metrics_by_yvar[yvar].loc[row, :] = dfrow_final
-            else:
-                feature_metrics_by_yvar[yvar].loc[row, :] = df_modeltype_yvar
- 
-    #############################################    
-    # add MC feature correlations with D14 CQAs #
-    #############################################
-    if 'corr' in row and 'MC' in row:
-        MC_corr_df = pd.read_csv(f'{data_folder}{f}', index_col=0)
-        for yvar in yvar_list_key:
-            feature_metrics_by_yvar[yvar].loc[row, :] = MC_corr_df.loc[yvar,xvar_list]
-    
-    #############################################################     
-    # add substrate consumption rate correlations with D14 CQAs #
-    #############################################################   
-    if 'corr' in row and 'NSRC' in row:
-        nutrient_specific_rate_df = pd.read_csv(f'{data_folder}{f}', index_col=0)
-        for yvar in yvar_list_key:
-            dfrow_to_adapt = nutrient_specific_rate_df.loc[yvar.replace('_14',''), :]
-            dfrow_final = adapt_dfrow(dfrow_to_adapt, input_suffix='', output_suffix=['_basal', '_feed'], xvar_list_final=xvar_list, xvar_to_ignore=['DO', 'feed %', 'feed vol', 'pH'])
-            feature_metrics_by_yvar[yvar].loc[row, :] = dfrow_final
-    
-#############################
-# process and plot heatmaps #
-#############################
-arr_dict = {}
-
-for k, yvar in enumerate(yvar_list_key):
-    df = feature_metrics_by_yvar[yvar].copy()
-            
-    # drop selected columns
-    df_filt = df.drop([f for f in features_to_drop if f in df], axis=1)
-    xvar_list_filt = [xvar for xvar in xvar_list if xvar not in features_to_drop]
-    
-    # apply mask --> set all values less than (p_init - NUM_FEATURE_THRES) to p_init - NUM_FEATURE_THRES (i.e. assume we can't distinguish between their importances)
-    if apply_masking:
-        thres_score = len(xvar_list)-feature_num_thres
-        df_filt.iloc[1:,:][df_filt.iloc[1:,:]<=thres_score] = 0 # thres_score
-        df_filt.iloc[:1,:][df_filt.iloc[:1,:]<=consumption_score_thres] = 0 # thres_score
-                
-    if sort_heatmap_by_clusters: 
-        df_filt_sorted = df_filt[[xvar for xvar in xvar_list_sorted_by_clusters if xvar in df_filt]]
-        xvar_list_filt_sorted = [xvar for xvar in xvar_list_sorted_by_clusters if xvar in df_filt]
-    else: 
-        df_filt_sorted = df_filt.copy()
-        xvar_list_filt_sorted = xvar_list_filt.copy()
-        
-    arr, (fig,ax) = plot_feature_importance_heatmap(df_filt_sorted.copy(), xvar_list_filt_sorted, heatmap_rows_all, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'{yvar}: feature importances based on various selection methods', savefig=None, return_fig_handle=True)
-    arr_dict[yvar] = pd.DataFrame(arr, columns=xvar_list_filt_sorted, index=heatmap_rows_all)
-    
-    # annotate with cluster 'labels'
-    ncolors_in_palette = 10
-    custom_palette = [plt.cm.tab10(i) for i in range(ncolors_in_palette)]
-    row_offset = 0
-    for num_clusters in num_clusters_list:
-        custom_palette = custom_palette*int(np.ceil(num_clusters/ncolors_in_palette))
-        cluster_labels = cluster_df_sorted.loc[num_clusters,:].to_numpy()
-        for i, c in enumerate(cluster_labels[:len(xvar_list_filt_sorted)]):
-            ax.scatter(np.array([i]), np.array([len(heatmap_rows_all)+row_offset]), s=20, color=custom_palette[int(c)])
-        row_offset += 1
-        
-    # annotate with feature rankings
-    ranking_arr = get_ranking_arr_across_row(df_filt_sorted.to_numpy().astype(float))
-    for i in range(ranking_arr.shape[0]):
-        for j in range(ranking_arr.shape[1]):
-            val = ranking_arr[i,j]
-            val = '' if np.isnan(val) else str(int(val))
-            ax.annotate(val, (j-0.2,i+0.2), fontsize=6, c='0')
-            
-    # annotate glyco-relevant nutrients from the literature (ChatGPT)
-    feature_idx_to_annotate = []
-    for nutrient in features_to_annotate: 
-        matching_idxs = [i for i, xvar in enumerate(xvar_list_filt_sorted) if nutrient in xvar]
-        feature_idx_to_annotate += matching_idxs
-    ax.scatter(np.array(feature_idx_to_annotate), np.array([-1]*len(feature_idx_to_annotate)), color='k', marker='v')
-    
-    if save_fig:
-        if use_feature_rankings: 
-            plt.savefig(f'{figure_folder}feature_analysis_all_{k}_coefscores.png', bbox_inches='tight', dpi=300)
-        else: 
-            plt.savefig(f'{figure_folder}feature_analysis_all_{k}_coefvals.png', bbox_inches='tight', dpi=300)
-            
-    plt.show()
-    
-#%% Plot averaged features as barplot
-feature_selection_rows_to_average = [0,1,2,3]
-num_clusters = 24
-cluster_labels = cluster_df_sorted.loc[num_clusters,:].to_numpy()
-ncolors_in_palette = 10
-custom_palette = [plt.cm.tab10(i) for i in range(ncolors_in_palette)]
-custom_palette = custom_palette*int(np.ceil(num_clusters/ncolors_in_palette))
-color_list = [custom_palette[cluster_label] for cluster_label in cluster_labels]
-
-for k, (yvar, arr) in enumerate(arr_dict.items()):
-    # get average of first 6 feature selection method scores
-    arr_avg = np.mean(arr.to_numpy()[feature_selection_rows_to_average,:], axis=0)
-    xvar_list = arr.columns.tolist()
-    
+def plot_colorcoded_barplot(arr, xvar_list, width=0.8, figsize=(10,5), color_list='b', annotate_xvar=None, figtitle=None, savefig=None):
     # plot barplot
-    fig, ax = plt.subplots(1,1, figsize=(10,5))
-    xtickpos = np.arange(len(xvar_list))+1
-    xticklabels = [str(idx) for idx in range(len(xvar_list_filt_sorted))]
-    width = 0.8
-    ax.bar(xtickpos, arr_avg, width=width, color=color_list)
+    fig, ax = plt.subplots(1,1, figsize=figsize)
+    xtickpos = np.arange(len(xvar_list))
+    ax.bar(xtickpos, arr, width=width, color=color_list)
     ax.set_xticks(xtickpos, xvar_list, fontsize=7, rotation=90)
-    ax.set_title(yvar, fontsize=20)
+    if figtitle is None:
+        ax.set_title(yvar, fontsize=20)
+    else: 
+        ax.set_title(figtitle, fontsize=20)
     ax.set_ylabel('feature importances', fontsize=16)
-    plt.savefig(f'{figure_folder}feature_analysis_{k}_coefscores_AVG.png', bbox_inches='tight', dpi=300)
+    # annotate xvar with lasso features, if needed
+    if annotate_xvar is not None: 
+        (ymin, ymax) = ax.get_ylim()
+        ax.scatter(annotate_xvar, arr[annotate_xvar]+(ymax-ymin)/25, color='k', s=2)
+    if savefig is not None:
+        plt.savefig(savefig, bbox_inches='tight', dpi=300)
     plt.show()
-        
-#%% Plot averaged features across all 4 CQAs as heatmap
-num_clusters_list = [24]
-cluster_labels = cluster_df_sorted.loc[num_clusters,:].to_numpy()
-ncolors_in_palette = 10
-custom_palette = [plt.cm.tab10(i) for i in range(ncolors_in_palette)]
-custom_palette = custom_palette*int(np.ceil(num_clusters/ncolors_in_palette))
-color_list = [custom_palette[cluster_label] for cluster_label in cluster_labels]
-
-df_avg_allcqas = pd.DataFrame(np.zeros((len(arr_dict), len(xvar_list_filt_sorted))), columns=xvar_list_filt_sorted, index=list(arr_dict.keys()))
-for k, (yvar, arr) in enumerate(arr_dict.items()):
-    # get average of first 6 feature selection method scores
-    arr_avg = np.mean(arr.to_numpy()[:6,:], axis=0)
-    df_avg_allcqas.loc[yvar,:] = arr_avg
     
-arr_avg, (fig,ax) = plot_feature_importance_heatmap(df_avg_allcqas.copy(), df_avg_allcqas.columns.tolist(), list(df_avg_allcqas.index), logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'Avg feature importances for all CQAs', savefig=None, return_fig_handle=True)
-
-# annotate with cluster 'labels'
-ncolors_in_palette = 10
-custom_palette = [plt.cm.tab10(i) for i in range(ncolors_in_palette)]
-row_offset = 0
-for num_clusters in num_clusters_list:
+def get_color_list_bycluster(cluster_df, xvar_list, num_clusters=24, ncolors_in_palette=10): 
+    cluster_labels = cluster_df.loc[num_clusters,xvar_list].to_numpy()
+    custom_palette = [plt.cm.tab10(i) for i in range(ncolors_in_palette)]
     custom_palette = custom_palette*int(np.ceil(num_clusters/ncolors_in_palette))
-    cluster_labels = cluster_df_sorted.loc[num_clusters,:].to_numpy()
-    for i, c in enumerate(cluster_labels[:len(xvar_list_filt_sorted)]):
-        ax.scatter(np.array([i]), np.array([df_avg_allcqas.shape[0]+row_offset]), s=20, color=custom_palette[int(c)])
-    row_offset += 1
+    color_list = [custom_palette[cluster_label] for cluster_label in cluster_labels]
+    return color_list, cluster_labels
     
-# save fig
-plt.savefig(f'{figure_folder}feature_analysis_all_coefscores_AVG.png', bbox_inches='tight', dpi=300)
+#%% 
+# get dataset info
+X_featureset_idx, Y_featureset_idx = 1, 0
+dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+dataset_suffix = ''
+
+# load correlation matrix
+csv_fname = f'{data_folder}{dataset_name}{dataset_suffix}_correlation_matrix.csv'
+corr_mat = pd.read_csv(csv_fname, index_col=0)
+
+# load clustermap 
+cluster_df_sorted = pd.read_csv(f'{data_folder}features_by_cluster_corrdist.csv', index_col=0)
+num_clusters = 24
+
+# scores to include
+scores_to_include = ['fs_avg', 'lasso_distributed', 'nsrc_boost', 'domain_knowledge']
+features_to_boost = {
+    'Asn':1, 'Gln':0.5, 'Ser':1, 'Thr':1, 'Met':0.5, 'Pro':0.5, 'Gly':0.5, 'Asp':0.5, 'Glu':0.5, 
+    'Riboflavin':1, 'Pyridoxine':1, 'Folic acid':0.5, 'Biotin':0.5, 
+    'Mn':1, 'Ca':0.5, 'Mg':0.5, 'Zn':0.5, 'Cu':0.5, 
+    'Uridine':1, 'Adenosine ':0.5, 'Putrescine':0.5
+    }
+
+# scaling factors
+fs_avg_weight = 1
+lasso_corr_scaling_power = 4
+lasso_distributed_scores_weight = 1
+nsrc_scaling_factor = 0.2
+knowledge_scaling_factor = 0.2 # 0.5
+
+# other parameters
+corr_thres = 0.85
+num_clusters = 24
+num_features_to_select = 10
+features_selected_dict = {}
+
+# load feature analysis dataframes
+for k, yvar in enumerate(yvar_list_key): 
+    print('******************')
+    print(yvar)
+    print('******************')
+    df = pd.read_csv(f'{data_folder}feature_analysis_all_{k}_coefvals.png', index_col=0)
+    xvar_list = df.columns.tolist()
+    rows = list(df.index)
+    scorecard = np.zeros((len(xvar_list),))
+    features_selected = []
+    features_discarded = []
     
+    # get lasso features and selected clusters
+    lasso_coefs = df.iloc[4,:]
+    lasso_coefs_nonzero = lasso_coefs[lasso_coefs>0]
+    lasso_nonzero_xvar = list(lasso_coefs_nonzero.index)
+    lasso_nonzero_idxs = np.array([i for i, xvar in enumerate(xvar_list) if xvar in lasso_nonzero_xvar])
+    
+    # get domain knowledge based features to boost 
+    knowledge_features_idxs = []
+    for nutrient in features_to_boost.keys():
+        matching_idxs = [i for i, xvar in enumerate(xvar_list) if nutrient in xvar]
+        knowledge_features_idxs += matching_idxs
+        
+    # get color list
+    color_list, cluster_labels = get_color_list_bycluster(cluster_df_sorted, xvar_list, num_clusters, ncolors_in_palette=10)
+    cluster_dict = {xvar:label for xvar, label in zip(xvar_list, cluster_labels)}
+    clusters_selected_by_lasso = list(set([cluster_labels[i] for i in lasso_nonzero_idxs]))
+    # print(f'{len(clusters_selected_by_lasso)} clusters selected by lasso:', clusters_selected_by_lasso)
+    selected_feature_count_bycluster = {label:0 for label in range(1,num_clusters+1)}
+    
+    # average scores from first 4 rows (MC_rf_SHAP, MC_rf_RFE, MC_rf_coef, MC_plsr_coef)
+    if 'fs_avg' in scores_to_include:
+        fs_avg = np.nanmean(df.iloc[:4, :].to_numpy(), axis=0)
+        scorecard += fs_avg*fs_avg_weight
+        plot_colorcoded_barplot(fs_avg, xvar_list, width=0.8, color_list=color_list, annotate_xvar=knowledge_features_idxs, figtitle=f'{yvar}: after fs_avg', savefig=None)
+    
+    # add lasso distributed scores
+    if 'lasso_distributed' in scores_to_include:
+        lasso_power = 4 #2
+        lasso_distributed_scores = np.zeros((len(lasso_coefs_nonzero), len(xvar_list))) 
+        for i, xvar in enumerate(lasso_nonzero_xvar): 
+            # get coef value
+            coefval = lasso_coefs_nonzero[xvar]
+            # get correlation coefficient scores with this xvar
+            corr_coefs = corr_mat.loc[xvar,xvar_list]
+            # get product of corr_coef and coefval
+            product_coefval_corrcoefsq = coefval*(corr_coefs**lasso_corr_scaling_power)
+            # add to lasso distributed scores array
+            lasso_distributed_scores[i,:] = product_coefval_corrcoefsq
+        # get max value for each feature down the column
+        lasso_distributed_scores = np.max(lasso_distributed_scores, axis=0)
+        scorecard += lasso_distributed_scores*lasso_distributed_scores_weight
+        plot_colorcoded_barplot(scorecard, xvar_list, width=0.8, color_list=color_list, annotate_xvar=knowledge_features_idxs, figtitle=f'{yvar}: after lasso_distributed', savefig=None)
+        
+    # NSRC features
+    if 'nsrc_boost' in scores_to_include:
+        nsrc_vs_cqa_corr = df.loc['NSRC-vs-CQA_corr',:].to_numpy()
+        nsrc_boost_factor = 1 + nsrc_scaling_factor*nsrc_vs_cqa_corr
+        # fill nans
+        nsrc_boost_factor[np.isnan(nsrc_boost_factor)] = 1
+        scorecard *= nsrc_boost_factor
+        plot_colorcoded_barplot(scorecard, xvar_list, width=0.8, color_list=color_list, annotate_xvar=knowledge_features_idxs, figtitle=f'{yvar}: after nsrc_boost', savefig=None)
+        
+    # 'domain knowledge' features
+    if 'domain_knowledge' in scores_to_include and yvar.find('Titer')==-1:
+        knowledge_boost_factor = np.zeros((len(xvar_list),))
+        for nutrient, nutrient_score in features_to_boost.items(): 
+            matching_idxs = [i for i, xvar in enumerate(xvar_list) if nutrient in xvar]
+            if len(matching_idxs) > 0:
+                knowledge_boost_factor[np.array(matching_idxs)] += nutrient_score
+        knowledge_boost_factor = 1 + knowledge_boost_factor*knowledge_scaling_factor
+        scorecard *= knowledge_boost_factor
+        # plot_colorcoded_barplot(scorecard, xvar_list, width=0.8, color_list=color_list, annotate_xvar=knowledge_features_idxs, figtitle=f'{yvar}: after knowledge_boost',  savefig=None)
+        
+    # commence feature scoring and select top X factors
+    plot_colorcoded_barplot(scorecard, xvar_list, width=0.8, color_list=color_list, annotate_xvar=knowledge_features_idxs, figtitle=f'{yvar}: FINAL SCORES',  savefig=None)
+    # rank the features by score
+    idxs_sorted = np.argsort(scorecard)
+    idxs_sorted = idxs_sorted[::-1]
+    xvar_list_sorted = [xvar_list[i] for i in idxs_sorted]
+    
+    
+    # reorder correlation matrix by feature rankings, and threshold
+    corr_mat_sorted_thres = corr_mat.loc[xvar_list_sorted, xvar_list_sorted]
+    corr_mat_sorted_thres = np.tril((corr_mat_sorted_thres>corr_thres)*1)
+    np.fill_diagonal(corr_mat_sorted_thres, 0)
+    corr_mat_sorted_thres = pd.DataFrame(corr_mat_sorted_thres, columns=xvar_list_sorted, index=xvar_list_sorted)
+    fig, ax = plt.subplots(1,1, figsize=(20,20))
+    _, _, _ = heatmap(corr_mat_sorted_thres, ax=ax, row_labels=xvar_list_sorted, show_gridlines=False)
+    
+    # go down the list and select features, adding to the cluster tally
+    pointer = 0
+    correlated_feature_clusters_selected = []
+    while len(features_selected)<num_features_to_select:
+        # get next feature to consider
+        feature = xvar_list_sorted[pointer]
+        select_feature = True
+        print(pointer, feature)
+        # get correlations with other previously selected features
+        corr_mat_sorted_thres_trunc = corr_mat_sorted_thres.loc[features_selected+[feature], features_selected+[feature]]
+        sum_highcorr_features_bycol = corr_mat_sorted_thres_trunc.sum(axis=0).to_numpy()
+        # find rows where there sum is 2 or more 
+        multicorr_cols_idx = np.argwhere(sum_highcorr_features_bycol>=2).reshape(-1,)
+        print('multicorr_cols_idx:', multicorr_cols_idx)
+        if len(multicorr_cols_idx)>0:
+            # iterate through highcorr cols, check if we have a high correlation triad (or more) 
+            col_idx_idx = 0
+            while select_feature and col_idx_idx<len(multicorr_cols_idx):
+                col_idx = multicorr_cols_idx[col_idx_idx]
+                col_sum = sum_highcorr_features_bycol[col_idx]
+                # reject feature if there are 3 or more highly correlated features with the same col feature 
+                if col_sum >= 3: 
+                    select_feature = False
+                else: 
+                    print(f'Checking col {col_idx} (col_sum={col_sum})')
+                    # get slice of col corrs and flip it
+                    col_corr_flipped = np.flip(corr_mat_sorted_thres_trunc.iloc[:,col_idx].to_numpy())
+                    print('col_corr_flipped:', col_corr_flipped)
+                    # get indices with 1's
+                    row_corr = corr_mat_sorted_thres_trunc.iloc[-1,:len(features_selected)+1].to_numpy()
+                    print('row_corr:', row_corr)
+                    multicorr_rows_idx = np.argwhere(col_corr_flipped==1).reshape(-1,)
+                    print('multicorr_rows_idx:', multicorr_rows_idx)
+                    # get sum of highly correlated features in row (for feature under consideration) 
+                    row_sum = corr_mat_sorted_thres_trunc.iloc[-1,multicorr_rows_idx].sum()
+                    print('Col_sum:', col_sum, 'Row_sum:', row_sum)
+                    # sums should be identical to indicate symmetry // mutual correlation of the triad
+                    if col_sum==row_sum: 
+                        select_feature = False
+                col_idx_idx += 1
+                
+        if select_feature:
+            features_selected.append(feature)
+            print(f'Selecting feature {pointer}: {feature}')
+        else:
+            features_discarded.append(feature)
+            print(f'Dropping feature {pointer}: {feature}')
+        print()
+        pointer += 1
+    # summary
+    features_selected_dict[yvar] = features_selected
+    print(f'{len(features_selected)} features selected:', features_selected)
+    print()
+    print(f'{len(features_discarded)} features discarded:', features_discarded)
+    print()
+    # get final correlation map
+    corr_mat_selected = corr_mat_sorted_thres.loc[features_selected, features_selected]
+    fig, ax = plt.subplots(1,1, figsize=(3,3))
+    _, _, _ = heatmap(corr_mat_selected, ax=ax, row_labels=features_selected, col_labels=features_selected, show_gridlines=False)
+
+
+# feature analysis
+features_selected_all = []
+for yvar, features_selected in features_selected_dict.items():
+    print(yvar)
+    print(features_selected)
+    print()
+    features_selected_all += features_selected
+
+xvars_unique, counts = np.unique(np.array(features_selected_all), return_counts=True)
+print(len(xvars_unique))
+for xvar, count in zip(xvars_unique, counts):
+    print(xvar, count)
+
     
     

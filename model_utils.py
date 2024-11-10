@@ -748,27 +748,39 @@ def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list
 def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_eval_list, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, savefig=None):
 
     # iterate through yvar in sublist
-    fig, ax = plt.subplots(3,4, figsize=(27,18))
+    fig, ax = plt.subplots(len(models_to_eval_list),len(yvar_list), figsize=(6.75*len(yvar_list),6*len(models_to_eval_list)))
     for i, yvar in enumerate(yvar_list): 
         y = Y[:,i]
         for j, model_type in enumerate(models_to_eval_list): 
             c = model_cmap[model_type]
             ypred_train = ypred_train_bymodel[model_type][:,i]
             ypred_test = ypred_test_bymodel[model_type][:,i]
-            ax[j][i].scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
-            ax[j][i].scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
-            ax[j][i].set_title(f'{model_type} <> {yvar}', fontsize=16)
-            ax[j][i].set_ylabel(f'{yvar} (predicted)', fontsize=12)
-            ax[j][i].set_xlabel(f'{yvar} (actual)', fontsize=12)          
-            (xmin, xmax) = ax[j][i].get_xlim()
-            (ymin, ymax) = ax[j][i].get_ylim()
             r2_train = round(pearsonr(y, ypred_train)[0]**2,2)
             r2_test = round(pearsonr(y, ypred_test)[0]**2,2)
-            ax[j][i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
-            ax[j][i].legend(['train', 'test'], loc='lower right')
-                
+            
+            if len(models_to_eval_list)>1:
+                ax[j][i].scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
+                ax[j][i].scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
+                ax[j][i].set_title(f'{model_type} <> {yvar}', fontsize=16)
+                ax[j][i].set_ylabel(f'{yvar} (predicted)', fontsize=12)
+                ax[j][i].set_xlabel(f'{yvar} (actual)', fontsize=12)          
+                (xmin, xmax) = ax[j][i].get_xlim()
+                (ymin, ymax) = ax[j][i].get_ylim()
+                ax[j][i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
+                ax[j][i].legend(['train', 'test'], loc='lower right')
+            else: 
+                ax[i].scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
+                ax[i].scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
+                ax[i].set_title(f'{model_type} <> {yvar}', fontsize=16)
+                ax[i].set_ylabel(f'{yvar} (predicted)', fontsize=12)
+                ax[i].set_xlabel(f'{yvar} (actual)', fontsize=12)          
+                (xmin, xmax) = ax[i].get_xlim()
+                (ymin, ymax) = ax[i].get_ylim()
+                ax[i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
+                ax[i].legend(['train', 'test'], loc='lower right')
+
     ymax = ax.flatten()[0].get_position().ymax
-    plt.suptitle(f'Model Predicted vs. Actual values for various Y variables\n{yvar_list}', y=ymax*1.08, fontsize=24)  
+    plt.suptitle(f'Model Predicted vs. Actual values for various Y variables', y=ymax*1.08, fontsize=24)  
     if savefig is not None: 
         fig.savefig(savefig, bbox_inches='tight')
     plt.show()

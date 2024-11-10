@@ -71,7 +71,7 @@ kfold_suffix = ''
 xvar_list = xvar_list_dict[base_featureset_idx]
 
 # display & thresholding
-use_feature_rankings = True
+use_feature_rankings = False
 apply_masking = False
 feature_num_thres = 20
 consumption_score_thres = 0.4
@@ -255,7 +255,13 @@ for k, yvar in enumerate(yvar_list_key):
         xvar_list_filt_sorted = xvar_list_filt.copy()
         
     arr, (fig,ax) = plot_feature_importance_heatmap(df_filt_sorted.copy(), xvar_list_filt_sorted, heatmap_rows_all, logscale_cmap=False, scale_vals=True, annotate=None, get_clustermap=False, figtitle=f'{yvar}: feature importances based on various selection methods', savefig=None, return_fig_handle=True)
-    arr_dict[yvar] = pd.DataFrame(arr, columns=xvar_list_filt_sorted, index=heatmap_rows_all)
+    arr_df = pd.DataFrame(arr, columns=xvar_list_filt_sorted, index=heatmap_rows_all)
+    arr_dict[yvar] = arr_df
+    # save heatmap as CSV
+    if use_feature_rankings: 
+        arr_df.to_csv(f'{data_folder}feature_analysis_all_{k}_coefscores.png')
+    else:
+        arr_df.to_csv(f'{data_folder}feature_analysis_all_{k}_coefvals.png')
     
     # annotate with cluster 'labels'
     ncolors_in_palette = 10
@@ -308,7 +314,7 @@ for k, (yvar, arr) in enumerate(arr_dict.items()):
     # plot barplot
     fig, ax = plt.subplots(1,1, figsize=(10,5))
     xtickpos = np.arange(len(xvar_list))+1
-    xticklabels = [str(idx) for idx in range(len(xvar_list_filt_sorted))]
+    xticklabels = [str(idx) for idx in range(len(xvar_list))]
     width = 0.8
     ax.bar(xtickpos, arr_avg, width=width, color=color_list)
     ax.set_xticks(xtickpos, xvar_list, fontsize=7, rotation=90)
@@ -317,6 +323,7 @@ for k, (yvar, arr) in enumerate(arr_dict.items()):
     plt.savefig(f'{figure_folder}feature_analysis_{k}_coefscores_AVG.png', bbox_inches='tight', dpi=300)
     plt.show()
         
+
 #%% Plot averaged features across all 4 CQAs as heatmap
 num_clusters_list = [24]
 cluster_labels = cluster_df_sorted.loc[num_clusters,:].to_numpy()
