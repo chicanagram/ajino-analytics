@@ -24,6 +24,7 @@ shap = "*"
 mlxtend = "==0.1.7"
 spyder-kernels = "==2.5.0"
 scikit-optimize = "*"
+sklearn-genetic-opt = "==0.11.1"
 
 [dev-packages]
 

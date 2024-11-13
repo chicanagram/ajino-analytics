@@ -8,11 +8,105 @@ Created on Wed Jul 24 16:49:45 2024
 
 import numpy as np
 import pandas as pd
+import pickle
 import matplotlib.pyplot as plt
 from plot_utils import heatmap, annotate_heatmap
 import seaborn as sns
 from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key, xvar_list_dict_prefilt
 from get_datasets import get_XYdata_for_featureset
+
+
+def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=None, pkl_fname=None, data_folder=data_folder, shuffle_data=True, remove_cols_w_nan_thres=0.1):
+    
+    from sklearn.preprocessing import scale
+
+    # get X Y variable names
+    xvar_list_prefilt = xvar_list_dict[X_featureset_idx]
+    yvar_list = yvar_list_dict[Y_featureset_idx]
+    
+    # get XY data - drop rows which contain any NA values      
+    xy_var_list = ['exp_label', 'Basal medium', 'Feed medium'] + [var for var in xvar_list_prefilt+yvar_list if var in d]
+    print(len(xy_var_list), xy_var_list)
+    XY_df = d[xy_var_list]
+    exp_label_list_init = XY_df.exp_label.tolist()
+    print('Initial dataframe shape:', XY_df.shape)
+    
+    # remove columns with above a threshold (e.g 0.1) of NaNs
+    cols_to_delete = XY_df.columns[XY_df.isnull().sum()/len(XY_df) > remove_cols_w_nan_thres]
+    XY_df.drop(cols_to_delete, axis=1, inplace=True)
+    print(f'After removing columns with >{remove_cols_w_nan_thres*100}% of NaN data, dataframe shape:', XY_df.shape)
+    
+    # remove rows with nan data
+    XY_df = XY_df.dropna()
+    print('After removing rows with NaN data, dataframe shape:', XY_df.shape)
+    
+    # remove variables with only zeros
+    XY_df = XY_df.loc[:,(XY_df!= 0).any(axis=0)]
+    xvar_list = [xvar for xvar in xvar_list_prefilt if xvar in XY_df]
+    exp_label_list_final = XY_df.exp_label.tolist()
+    print('After removing variables with only zero values, dataframe shape:', XY_df.shape)
+    
+    # print X & Y variables
+    print('X variables:', len(xvar_list))
+    print("'", end='')
+    print(*xvar_list, sep="'\n'", end="'")
+    print('\n')
+    
+    print('Y variables:', len(yvar_list))
+    print("'", end='')
+    print(*yvar_list, sep="'\n'", end="'")
+    print('\n')
+    
+    xvar_dropped = [xvar for xvar in xvar_list_prefilt if xvar not in xvar_list]
+    print(f'{len(xvar_dropped)}/{len(xvar_list_prefilt)} X variables DROPPED:', xvar_dropped)
+    print()
+    samples_dropped = [exp_label for exp_label in exp_label_list_init if exp_label not in exp_label_list_final]
+    print(f'{len(samples_dropped)}/{len(exp_label_list_init)} samples DROPPED:', samples_dropped)
+    print()
+    
+    # get X & Y numpy arrays
+    X = XY_df[xvar_list].to_numpy()
+    Y = XY_df[yvar_list].to_numpy()
+    
+    # randomize samples (shuffle datasets)
+    if shuffle_data:
+        shuffle_idx = np.arange(len(Y))
+        np.random.seed(seed=0)
+        np.random.shuffle(shuffle_idx)
+        X = X[shuffle_idx,:]
+        Y = Y[shuffle_idx,:]
+    
+    # scale X dataset
+    Xscaled = scale(X)
+    print(f'N={len(Y)}, p={X.shape[1]}')
+    
+    # create dict of all datasets with various feature set combinations
+    XYarr_dict = {
+        'Y':Y, 'X': X, 'Xscaled':Xscaled, 'yvar_list': yvar_list, 'xvar_list': xvar_list
+    }
+
+    # save csv dataframe
+    if csv_fname is not None:
+        XY_df.to_csv(f'{data_folder}{csv_fname}')
+        
+    # save numpy datasets
+    if pkl_fname is not None:
+        with open(f'{data_folder}{pkl_fname}', 'wb') as f:
+            pickle.dump(XYarr_dict, f)
+          
+    return XYarr_dict, XY_df
+
+
+def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix='', data_folder=data_folder):
+    with open(f'{data_folder}X{X_featureset_idx}Y{Y_featureset_idx}{dataset_suffix}.pkl', 'rb') as f:
+        XYarr_dict = pickle.load(f)
+    Y = XYarr_dict['Y']       
+    X = XYarr_dict['X']
+    Xscaled = XYarr_dict['Xscaled']
+    yvar_list = XYarr_dict['yvar_list'] 
+    xvar_list = XYarr_dict['xvar_list']
+    return Y, X, Xscaled, yvar_list, xvar_list
+
 
 def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx, use_abs_vals=True):
     import matplotlib.pyplot as plt

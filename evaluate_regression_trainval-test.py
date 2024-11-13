@@ -7,7 +7,7 @@ Created on Wed Jul 24 21:02:36 2024
 """
 import numpy as np
 import pandas as pd
-from variables import model_params, yvar_list_key, xvar_sublist_sets_bymodeltype
+from variables import model_params, yvar_list_key, features_selected_dict
 from model_utils import split_data_to_trainval_test, eval_model_over_params, plot_model_param_results, evaluate_model_on_train_test_data, get_feature_importances, plot_feature_importance_barplots_bymodel, get_feature_coefficients, order_features_by_coefficient_importance, plot_model_metrics, plot_model_metrics_cv, plot_scatter_train_test_predictions, order_list_by_frequencies, plot_feature_importance_heatmap
 from plot_utils import figure_folder
 from get_datasets import data_folder, get_XYdata_for_featureset
@@ -105,7 +105,7 @@ n_splits = 10
 yvar_list = yvar_list_key.copy()
 # yvar_list = yvar_list_key.copy()[:2]
 scoring = 'mae'
-optimize_model_params = True
+optimize_model_params = False
 optimize_feature_subset = False #'sfs-backward' # None # 
 featureset_suffix = '' # '_sfs-backward'
 save_results = True
@@ -124,11 +124,11 @@ else:
     model_params_opt = model_params.copy()
     
 if optimize_feature_subset is None:  
-    featureset_bymodeltype = xvar_sublist_sets_bymodeltype.copy()
+    featureset_bymodeltype = features_selected_dict.copy()
     
     
     
-#%%
+#%% Perform training & testing
 
 # get relevant dataset with chosen features
 for (X_featureset_idx, Y_featureset_idx) in featureset_list: 

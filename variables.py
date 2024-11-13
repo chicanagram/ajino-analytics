@@ -62,6 +62,18 @@ overall_glyco_cqas = {
     'galactosylation': ['G1', 'G1Fa', 'G1Fb', 'G2', 'G2F']
 }
 
+yvar_sublist_sets = [
+    ['Titer (mg/L)_14', 'mannosylation_14',
+     'fucosylation_14', 'galactosylation_14'],
+    ['G0_14', 'G0F_14', 'G1_14', 'G1Fa_14'],
+    ['G1Fb_14', 'G2_14', 'G2F_14', 'Other_14']
+]
+
+yvar_list_key = ['Titer (mg/L)_14', 'mannosylation_14',
+                 'fucosylation_14', 'galactosylation_14']
+
+process_features = ['DO', 'pH', 'feed vol']
+
 var_dict_all = {
     'inputs': [
         'Basal medium',
@@ -871,68 +883,53 @@ xvar_list_dict = {
     ]
 }
 
-# %%
-yvar_sublist_sets = [
-    ['Titer (mg/L)_14', 'mannosylation_14',
-     'fucosylation_14', 'galactosylation_14'],
-    ['G0_14', 'G0F_14', 'G1_14', 'G1Fa_14'],
-    ['G1Fb_14', 'G2_14', 'G2F_14', 'Other_14']
-]
-
-yvar_list_key = ['Titer (mg/L)_14', 'mannosylation_14',
-                 'fucosylation_14', 'galactosylation_14']
-
-process_features = ['DO', 'pH', 'feed vol']
+# %% FEATURE SELECTION
 features_selected_dict = {
-    'Titer (mg/L)_14': [
-        'Thr_feed',
-        'Co_feed',
-        'His_feed',
-        'Riboflavin_feed',
-        'Pro_feed',
-        'K_feed',
-        'Asp_feed',
-        'Nicotinamide_feed',
-        'Choline_feed',
-        'Fe_feed']+process_features,
-        
-     'mannosylation_14': [
-         'Riboflavin_feed',
-        'Riboflavin_basal',
-        'Lys_basal',
-        'Ca_feed',
-        'P_feed',
-        'Asp_basal',
-        'Uridine_feed',
-        'Gly-Tyr_feed',
-        'Trp_basal',
-        'Folic acid_basal']+process_features,
-     
-     'fucosylation_14': [
-         'Riboflavin_feed',
-        'Riboflavin_basal',
-        'Nicotinamide_basal',
-        'Ca_feed',
-        'Folic acid_basal',
-        'Thr_feed',
-        'Cu_feed',
-        'Lys_basal',
-        'Arg_feed',
-        'Asn_feed']+process_features,
-     
-     'galactosylation_14': [
-        'Asp_basal',
-        'Co_basal',
-        'Ser_basal',
-        'Thr_basal',
-        'Folic acid_basal',
-        'Pro_feed',
-        'Trp_basal',
-        'Choline_feed',
-        'Met_basal',
-        'Nicotinamide_basal']+process_features
- }
+'Titer (mg/L)_14': ['Co_feed', 'Arg_feed', 'Riboflavin_feed', 'Pro_feed', 'His_feed', 'Folic acid_feed', 'Fe_feed', 'Pyridoxine_feed', 'K_feed', 'Nicotinamide_feed', 'Uridine_feed', 'Zn_basal', 'DO', 'pH', 'feed vol'],
+'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Lys_basal', 'Uridine_feed', 'P_feed', 'Asp_basal', 'Thr_feed', 'Folic acid_basal', 'Biotin_basal', 'DO', 'pH', 'feed vol'],
+'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Folic acid_basal', 'Thr_feed', 'Nicotinamide_basal', 'Cu_feed', 'Asn_feed', 'Uridine_feed', 'Lys_basal', 'DO', 'pH', 'feed vol'],
+'galactosylation_14': ['Asp_basal', 'Ser_basal', 'Thr_basal', 'Co_basal', 'Folic acid_basal', 'K_basal', 'Pro_feed', 'Trp_basal', 'Choline_feed', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
+} 
 
+## MIN # OF FEATURES
+# features_selected_dict = {
+# 'Titer (mg/L)_14': ['Pro_feed', 'Co_feed', 'Thr_feed', 'Riboflavin_feed', 'Met_feed', 'Folic acid_feed', 'Pyridoxine_feed', 'Zn_basal', 'Zn_feed', 'Cyanocobalamin_basal', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
+# 'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'DO', 'pH', 'feed vol'],
+# 'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'DO', 'pH', 'feed vol'],
+# 'galactosylation_14': ['Asp_basal', 'Folic acid_basal', 'Ser_basal', 'Co_basal', 'Trp_basal', 'Thr_basal', 'Nicotinamide_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
+# } 
+
+features_selected_dict = {
+'Titer (mg/L)_14': ['Nicotinamide_feed', 'Cyanocobalamin_basal', 'DO', 'pH', 'feed vol'], #
+'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
+'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
+'galactosylation_14': ['Folic acid_basal', 'Thr_basal', 'Trp_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
+} 
+
+
+
+#%% DOMAIN KNOWLEDGE 
+
+features_to_boost_GLYCO = {
+    'Asn':1, 'Gln':0.5, 'Ser':1, 'Thr':1, 'Met':0.5, 'Pro':0.5, 'Gly':0.5, 'Asp':0.5, 'Glu':0.5, 
+    'Riboflavin':1, 'Pyridoxine':1, 'Folic acid':0.5, 'Biotin':0.5, 
+    'Mn':1, 'Ca':0.5, 'Mg':0.5, 'Zn':0.5, 'Cu':0.5, 
+    'Uridine':1, 'Adenosine ':0.5, 'Putrescine':0.5
+    }
+
+features_to_boost_TITER = {
+    'Gln': 1, 'Tyr': 1, 'Met': 1, 'Arg': 1, 'Asn': 1, 'Pro': 1, 'His': 0.5, 'Ser': 0.5, 'Lys': 0.5, 
+    'Thiamin': 1, 'Riboflavin': 1, 'Patothenic  acid': 1, 'Pyridoxine': 1, 'Biotin': 1, 'Folic acid': 1, 'Cyanocobalamin': 1, 
+    'Fe': 1, 'Zn': 1, 'Cu': 1, 'Mg': 1, 'Ca': 0.5, 'Mn': 0.5, 'Co': 0.5, 'Ni': 0.5, 
+    'Adenosine': 1, 'Uridine': 1, 'Putrescine': 0.5, 'Ethanolomine': 0.5
+    }
+
+features_to_boost_dict = {
+    'Titer (mg/L)_14': features_to_boost_TITER,
+    'mannosylation_14': features_to_boost_GLYCO, 
+    'fucosylation_14': features_to_boost_GLYCO, 
+    'galactosylation_14': features_to_boost_GLYCO, 
+    }
 
 # %% MODEL PARAMETERS
 

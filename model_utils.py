@@ -18,7 +18,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_err
 import matplotlib.pyplot as plt
 import seaborn as sns
 from plot_utils import figure_folder, heatmap, convert_figidx_to_rowcolidx
-
+from variables import model_params
 
 data_folder = '../ajino-analytics-data/'
 
@@ -117,7 +117,6 @@ def kfold_cv_with_scoring(X, y, model_dict, scoring='mae', n_splits=8, scale_dat
         'ypred_cv': ypred_cv
         })
     return model_dict
-
 
 def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='mae', cv=None, scale_data=False, print_output=True):
     
@@ -228,6 +227,123 @@ def split_data_to_trainval_test(X, n_splits=5, split_type='random'):
             split_dict.update({i: (train_index, test_index)})
     return split_dict
             
+
+def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_name_wsuffix, featureset_suffix='', n_splits=10, scoring='mae', models_to_eval_list=['randomforest'], model_params=model_params, save_results=None, show_plots=True, print_progress=True):
+
+    # create train-val / test splits using KFold
+    kf_dict = split_data_to_trainval_test(X, n_splits=n_splits, split_type='random')
+    metrics_list = ['r2_train', 'r2_test', 'mae_norm_train', 'mae_norm_test', 'mae_train', 'mae_test']
+    kfold_metrics = []
+        
+    # initialize dict for storing trained models
+    SURROGATE_MODELS = {}
+    features_selected_sorted_dict = {}
+    ypred_train_bymodel = {model_type: np.zeros((len(Y), len(yvar_list))) for model_type in models_to_eval_list}
+    ypred_test_bymodel = {model_type: np.zeros((len(Y), len(yvar_list))) for model_type in models_to_eval_list}
+    
+    for k, (train_idx, test_idx) in kf_dict.items():
+    
+        # get split data
+        X_trainval, Y_trainval = X[train_idx, :], Y[train_idx, :]
+        X_test, Y_test = X[test_idx, :], Y[test_idx, :]
+        
+        if print_progress:
+            print('\n************************************************')
+            print(f'Performing train/test evaluation on Fold {k}...')
+            print('************************************************') 
+        for model_type in models_to_eval_list:         
+            for i, yvar in enumerate(yvar_list): 
+                if print_progress:
+                    print(f'Evaluating {model_type} <> {yvar}...')
+                # get features selected
+                if isinstance(xvar_selected, list):
+                    features_selected = xvar_selected
+                else:
+                    features_selected = xvar_selected[yvar]
+                X_trainval_selected = pd.DataFrame(X_trainval, columns=xvar_list_all).loc[:, features_selected].to_numpy()
+                X_test_selected = pd.DataFrame(X_test, columns=xvar_list_all).loc[:, features_selected].to_numpy()
+                y_trainval = Y_trainval[:,i]
+                y_test = Y_test[:,i]
+                model_dict  = model_params[dataset_name_wsuffix][model_type][yvar][0]
+                
+                # get metrics from evaluating on train & test data
+                metrics, model = evaluate_model_on_train_test_data(X_test_selected, y_test, X_trainval_selected, y_trainval, model_dict, scoring=scoring)
+                metrics.update({'k':k, 'yvar':yvar, 'xvar_sorted': ', '.join(list(features_selected))})
+                kfold_metrics.append(metrics)
+                
+                # get test predictions
+                ypred_test_bymodel[model_type][test_idx,i] = metrics['ypred_test']
+    
+    if print_progress:
+        print('\n********************************************************')
+        print('Getting train performance and coefficients on full dataset')
+        print('**********************************************************')
+    for model_type in models_to_eval_list:     
+        for i, yvar in enumerate(yvar_list): 
+            # get features selected
+            if isinstance(xvar_selected, list):
+                features_selected = xvar_selected
+            else:
+                features_selected = xvar_selected[yvar]
+            X_selected = pd.DataFrame(X, columns=xvar_list_all).loc[:, features_selected].to_numpy()
+            print('X_selected.shape: ', X_selected.shape)
+            y = Y[:,i]
+            model_dict = model_params[dataset_name_wsuffix][model_type][yvar][0]
+            metrics_train, model = evaluate_model_on_train_test_data(X_selected, y, X_selected, y, model_dict, scoring=scoring)
+            ypred_train_bymodel[model_type][:,i] = metrics_train['ypred_test']
+            SURROGATE_MODELS.update({yvar: model})
+        
+            # get features
+            coefs = get_feature_coefficients(model, model_type)
+            features_selected_sorted, coefs_sorted = order_features_by_coefficient_importance(coefs, features_selected, filter_out_zeros=True)
+            features_selected_sorted_dict.update({yvar: features_selected_sorted})
+            xticks = np.arange(len(coefs_sorted))
+            if show_plots:
+                plt.figure(figsize=(20,10))
+                plt.bar(xticks, coefs_sorted)
+                plt.xticks(xticks, features_selected_sorted, rotation=90, fontsize=8)
+                plt.ylabel('Feature importance')
+                plt.title(f'{yvar}: {model_type} feature importances')
+                plt.show()
+        
+    # plot scatter predictions
+    if show_plots:
+        savefig = None # f'{figure_folder}modelpredictions_scatterplots_{dataset_name}{dataset_suffix}{featureset_suffix}.png'
+        plot_scatter_train_test_predictions(Y[:,:len(yvar_list)], ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_eval_list, savefig=savefig)
+    if print_progress:
+        print('\n********************')
+        print('PLOT OVERALL RESULTS')
+        print('**********************')    
+     
+    # collect kfold metrics
+    kfold_metrics_cols = ['model_type', 'yvar', 'param_name', 'param_val', 'k', 'r2_train', 'r2_test', f'{scoring}_norm_train', f'{scoring}_norm_test', f'{scoring}_train', f'{scoring}_test', 'xvar_sorted']
+    kfold_metrics = pd.DataFrame(kfold_metrics, columns=kfold_metrics_cols).sort_values(by=['yvar', 'model_type', 'k']).reset_index(drop=True)
+    
+    # calculate average metrics
+    kfold_metrics_avg = []
+    for model_type in models_to_eval_list:
+        for yvar in yvar_list:
+            kfold_metrics_avg_dict = {'model_type':model_type, 'yvar':yvar}
+            metrics_avg = kfold_metrics[(kfold_metrics.yvar==yvar) & (kfold_metrics.model_type==model_type)][metrics_list].rename(columns={c:f'{c}_avg' for c in metrics_list}).mean(axis=0).round(3).to_dict()
+            metrics_std = kfold_metrics[(kfold_metrics.yvar==yvar) & (kfold_metrics.model_type==model_type)][metrics_list].rename(columns={c:f'{c}_std' for c in metrics_list}).std(axis=0).round(3).to_dict()
+            kfold_metrics_avg_dict.update(metrics_std)
+            kfold_metrics_avg_dict.update(metrics_avg)
+            kfold_metrics_avg.append(kfold_metrics_avg_dict)
+        kfold_metrics_avg_cols = ['model_type', 'yvar'] + list(metrics_avg.keys()) + list(metrics_std.keys())
+        kfold_metrics_avg = pd.DataFrame(kfold_metrics_avg, columns=kfold_metrics_avg_cols)
+    if save_results is not None:
+        kfold_metrics.to_csv(f'{data_folder}model_metrics_kfold_{dataset_name_wsuffix}{featureset_suffix}.csv')
+        kfold_metrics_avg.to_csv(f'{data_folder}model_metrics_avg_kfold_{dataset_name_wsuffix}{featureset_suffix}.csv') # 
+    
+    # plot kfold results
+    if show_plots:
+        figtitle = f'Model evaluation metrics for {dataset_name_wsuffix}{featureset_suffix}, {n_splits}-fold CV'
+        savefig = f'{figure_folder}modelmetrics_allselectedmodels_keyYvar_{dataset_name_wsuffix}{featureset_suffix}' if save_results else None
+        plot_model_metrics(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(7*len(yvar_list),15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True, annotate_vals=True)
+        # plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=True, annotate_vals=True)
+        
+    return kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS
+
 
 def eval_model_over_params(model_dict, yvar, X, y, modelparam_metrics_df_bymodelyvar, trained_model_cache, scoring='mae', scale_data=True):
     # get model_list and parameter list
@@ -609,6 +725,7 @@ def order_features_by_importance(feature_scoring_agg_yvar, xvar_list):
     return overall_feature_importance_yvar, feature_scoring_yvar, feature_ordering_yvar
 
 
+#%%
 def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))+1
@@ -657,6 +774,7 @@ def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2
     if savefig is not None:
         fig.savefig(savefig, bbox_inches='tight')
     plt.show()
+    
 
 def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
@@ -701,7 +819,7 @@ def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrow
     plt.show()
 
 
-def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
+def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'],  model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))*2+1
     for i, yvar in enumerate(yvar_list):
@@ -713,13 +831,14 @@ def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list
                 xtickoffset = -barwidth/2 + w/2 + k*w*2 
                 model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
                 ## R2
-                ax[0].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2'], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
+                ax[0].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
+                ax[0].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]], width=w, label=model_type, color=c)
                 if annotate_vals:
-                    ax[0].annotate(round(model_metrics_df_filt['r2'],2), (xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2']))
-                ax[0].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['r2_cv'], width=w, label=model_type, color=c)
+                    ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]))
+                    ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[1]],2), (xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]]))
                 ## MAE_norm
-                ax[1].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['mae_norm_train'], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
-                ax[1].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['mae_norm_cv'], width=w, label=model_type, color=c)
+                ax[1].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
+                ax[1].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['mae_norm'+suffix_list[1]], width=w, label=model_type, color=c)
     
     for k in range(nrows): 
         xtickpos = []
@@ -730,7 +849,7 @@ def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list
         ax[k].set_xticks(xtickpos, xticklabels, fontsize=16)
         
     # set ylim for MAE plots
-    ymax_mae = np.max(model_metrics_df[['mae_norm_train', 'mae_norm_cv']].to_numpy())
+    ymax_mae = np.max(model_metrics_df[['mae_norm'+suffix_list[0], 'mae_norm'+suffix_list[1]]].to_numpy())
     ax[0].set_ylim([0.2,1])
     ax[1].set_ylim([0,0.25])
     ax[0].set_ylabel('R2', fontsize=16)
@@ -758,7 +877,7 @@ def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymod
             r2_train = round(pearsonr(y, ypred_train)[0]**2,2)
             r2_test = round(pearsonr(y, ypred_test)[0]**2,2)
             
-            if len(models_to_eval_list)>1:
+            if len(models_to_eval_list)>1 and len(yvar_list)>1:
                 ax[j][i].scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
                 ax[j][i].scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
                 ax[j][i].set_title(f'{model_type} <> {yvar}', fontsize=16)
@@ -768,7 +887,7 @@ def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymod
                 (ymin, ymax) = ax[j][i].get_ylim()
                 ax[j][i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
                 ax[j][i].legend(['train', 'test'], loc='lower right')
-            else: 
+            elif len(models_to_eval_list)==1 and len(yvar_list)>1: 
                 ax[i].scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
                 ax[i].scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
                 ax[i].set_title(f'{model_type} <> {yvar}', fontsize=16)
@@ -778,9 +897,30 @@ def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymod
                 (ymin, ymax) = ax[i].get_ylim()
                 ax[i].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
                 ax[i].legend(['train', 'test'], loc='lower right')
-
-    ymax = ax.flatten()[0].get_position().ymax
-    plt.suptitle(f'Model Predicted vs. Actual values for various Y variables', y=ymax*1.08, fontsize=24)  
+            elif len(models_to_eval_list)>1 and len(yvar_list)==1: 
+                ax[j].scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
+                ax[j].scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
+                ax[j].set_title(f'{model_type} <> {yvar}', fontsize=16)
+                ax[j].set_ylabel(f'{yvar} (predicted)', fontsize=12)
+                ax[j].set_xlabel(f'{yvar} (actual)', fontsize=12)          
+                (xmin, xmax) = ax[j].get_xlim()
+                (ymin, ymax) = ax[j].get_ylim()
+                ax[j].text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
+                ax[j].legend(['train', 'test'], loc='lower right')
+            else: 
+                ax.scatter(y, ypred_train, c='k', alpha=0.5, marker='*')
+                ax.scatter(y, ypred_test, c=c, alpha=1, marker='o', s=16)
+                ax.set_title(f'{model_type} <> {yvar}', fontsize=16)
+                ax.set_ylabel(f'{yvar} (predicted)', fontsize=12)
+                ax.set_xlabel(f'{yvar} (actual)', fontsize=12)          
+                (xmin, xmax) = ax.get_xlim()
+                (ymin, ymax) = ax.get_ylim()
+                ax.text(xmin+(xmax-xmin)*0.05, ymin+(ymax-ymin)*0.85, f'R2 (train): {r2_train} \nR2 (test) {r2_test}', fontsize=14)
+                ax.legend(['train', 'test'], loc='lower right')
+    
+    if len(models_to_eval_list)>1 or len(yvar_list)>1:
+        ymax = ax.flatten()[0].get_position().ymax
+        plt.suptitle(f'Model Predicted vs. Actual values for various Y variables', y=ymax*1.08, fontsize=24)  
     if savefig is not None: 
         fig.savefig(savefig, bbox_inches='tight')
     plt.show()

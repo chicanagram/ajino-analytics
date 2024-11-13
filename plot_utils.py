@@ -159,7 +159,7 @@ def symlog(data):
     return data_symlog
     
     
-def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None, show_gridlines=True):
+def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None, show_gridlines=True, labeltop=False):
     """
     Create a heatmap from a numpy array and two lists of labels.
 
@@ -249,12 +249,16 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
     ax.set_xticks(np.arange(data.shape[1]))
     ax.set_yticks(np.arange(data.shape[0]))
     # ... and label them with the respective list entries.
-    ax.set_xticklabels(col_labels, fontsize=8, ha="right")
+    
     ax.set_yticklabels(row_labels, fontsize=8)
-
-    # Let the horizontal axes labeling appear on top.
-    ax.tick_params(top=False, bottom=True,
-                   labeltop=False, labelbottom=True)
+        
+    # Let the horizontal axes labeling appear on top or bottom.
+    if labeltop:
+        ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False)
+        ax.set_xticklabels(col_labels, fontsize=8, ha="left")
+    else:
+        ax.tick_params(top=False, bottom=True, labeltop=False, labelbottom=True)
+        ax.set_xticklabels(col_labels, fontsize=8, ha="right")
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=90,

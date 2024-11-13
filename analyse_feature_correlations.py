@@ -19,11 +19,9 @@ import pickle
 import matplotlib.pyplot as plt
 import scipy.spatial.distance as ssd
 from scipy.cluster import hierarchy
-from utils import get_xy_correlation_matrix, get_corrmat_corrlist, get_high_correlation_pairs, get_dict_of_features_with_highcorr
+from utils import get_XYdataset, get_XYdata_for_featureset, get_xy_correlation_matrix, get_corrmat_corrlist, get_high_correlation_pairs, get_dict_of_features_with_highcorr, cluster_features_based_on_crosscorrelations
 from plot_utils import heatmap, annotate_heatmap
 from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key, xvar_list_dict_prefilt
-from get_datasets import get_XYdataset, get_XYdata_for_featureset
-
 
 # %% get all XY feature correlations
 
