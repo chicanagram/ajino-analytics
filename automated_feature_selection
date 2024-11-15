@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import rankdata
 import matplotlib.pyplot as plt
-from variables import data_folder, yvar_list_key, features_to_boost_dict, process_features
+from variables import data_folder, yvar_list_key, features_to_boost_dict, process_features, xvar_list_dict, feature_selections
 from model_utils import run_trainval_test
 from plot_utils import figure_folder, heatmap
 from utils import sort_list, get_XYdata_for_featureset
@@ -506,17 +506,28 @@ class FeatureSelectionModule:
 
 #%% 
 
+
 fs_settings_dict = {
-    'naive': {
-        'fs_avg_weight': 0,
+    '_knowledge-opt': {
+        'fs_avg_weight': 0.5,
         'lasso_corr_scaling_power': 1,
-        'lasso_distributed_scores_weight': 0,
-        'nsrc_scaling_factor': 0,
-        'knowledge_scaling_factor': 0,
-        'corr_thres': 0.85,
-        'num_features_to_select': 5,
+        'lasso_distributed_scores_weight': 1,
+        'nsrc_scaling_factor': 0.66,
+        'knowledge_scaling_factor': 2,
+        'corr_thres': 0.8,
+        'num_features_to_select': 9,
         'max_num_highcorr_features': 2
         },
+    '_model-opt': {
+        'fs_avg_weight': 1,
+        'lasso_corr_scaling_power': 1,
+        'lasso_distributed_scores_weight': 0.5,
+        'nsrc_scaling_factor': 0.33,
+        'knowledge_scaling_factor': 0,
+        'corr_thres': 0.8,
+        'num_features_to_select': 8,
+        'max_num_highcorr_features': 1
+        },        
     'model-biased': {
         'fs_avg_weight': 1,
         'lasso_corr_scaling_power': 2,
@@ -540,7 +551,7 @@ fs_settings_dict = {
     
     }
 
-fs_settings_to_test = ['model-biased', 'knowledge-biased'] #  ['naive'] # 
+fs_settings_to_test = ['_model-opt'] #  ['model-biased', 'knowledge-biased'] #  
 plot_scorecards = True
 print_progress = False
 feature_selections_bysetting = {}
@@ -578,16 +589,6 @@ fs_params_dict_init = {
     'num_features_to_select': 10,
     'max_num_highcorr_features': 2    
     }
-fs_params_bounds_dict = {
-    'fs_avg_weight': (0,1),
-    'lasso_corr_scaling_power': (1,3),
-    'lasso_distributed_scores_weight': (0,1),
-    'nsrc_scaling_factor': (0,1),
-    'knowledge_scaling_factor': (0,2),
-    'corr_thres': (0.8, 1.0),
-    'num_features_to_select': (4, 12),
-    'max_num_highcorr_features': (1,4)
-    }
 fs_params_ranges_dict = {
     'fs_avg_weight': slice(0.5,1.5,0.5),
     'lasso_corr_scaling_power': slice(1,4,1),
@@ -600,7 +601,6 @@ fs_params_ranges_dict = {
     }
 
 fs_params_init = np.array([fs_params_dict_init[param] for param in fs_param_names])
-fs_params_bounds = tuple([v for k,v in fs_params_bounds_dict.items()])
 fs_params_ranges = tuple([v for k,v in fs_params_ranges_dict.items()])
 
 save_interval = 200
@@ -610,3 +610,64 @@ optres = optimize.brute(OptFeat.calculate_objective_function, fs_params_ranges, 
 print('Best fs parameters:', optres[0])
 print('Best results:', OptFeat.calculate_objective_function(optres[0]))
 
+#%% Visualize gridsearch results
+csv_fpath = f'{data_folder}feature_selection_GRIDSEARCH.csv'
+fs_res = pd.read_csv(csv_fpath, index_col='i')
+print(len(fs_res))
+fs_res = fs_res.drop_duplicates(subset=['features_selected'])
+# fs_res.to_csv(csv_fpath[:-4]+'_deduplicated.csv')
+print(len(fs_res))
+
+fs_res = fs_res.sort_values(by='obj_fn')
+fs_txt_list = fs_res['features_selected'].tolist()
+
+def convert_fstxt_to_dict_list(fs_txt_list, yvar_list, xvar_list):
+    fs_all_list = []
+    fs_idxs_all_list = []
+    fs_dict_list = []
+    fs_idxs_dict_list = []
+    for k, fs_txt in enumerate(fs_txt_list):
+        fs_yvar_list = fs_txt.split('\n')
+        fs_dict = {}
+        fs_idxs_dict = {}
+        fs_all = []
+        fs_idxs_all = []
+        for i, yvar in enumerate(yvar_list):
+            fs_yvar = fs_yvar_list[i][3:].split(', ')
+            fs_idxs_yvar = [xvar_list.index(xvar) for xvar in fs_yvar]
+            fs_dict[yvar] = fs_yvar
+            fs_idxs_dict[yvar] = fs_idxs_yvar
+            for idx, xvar in zip(fs_idxs_yvar, fs_yvar):
+                if idx not in fs_idxs_all:
+                    fs_idxs_all.append(idx)
+                    fs_all.append(xvar)
+        fs_dict_list.append(fs_dict)
+        fs_idxs_dict_list.append(fs_idxs_dict)
+        fs_idxs_all.sort()
+        fs_idxs_all_list.append(fs_idxs_all)
+        fs_all.sort()
+        fs_all_list.append(fs_all)
+    return fs_all_list, fs_idxs_all_list, fs_dict_list, fs_idxs_dict_list
+
+        
+xvar_list_all = xvar_list_dict[1]
+fs_all_list, fs_idxs_all_list, fs_dict_list, fs_idxs_dict_list = convert_fstxt_to_dict_list(fs_txt_list, yvar_list_key, xvar_list_all)
+    
+#%%
+fs_heatmap = np.zeros((len(xvar_list_all), len(fs_idxs_all_list)))
+for i in range(len(fs_idxs_all_list)):
+    fs_idxs_all = fs_idxs_all_list[i]
+    fs_heatmap[np.array(fs_idxs_all), i] = 1
+
+nrows = 6
+chunk = int(np.ceil(fs_heatmap.shape[1]/nrows))
+fig, ax = plt.subplots(nrows,1, figsize=(40,len(xvar_list_all)/chunk*40))
+for k in range(nrows):  
+    print(chunk*k, chunk*(k+1))
+    ax[k].imshow(fs_heatmap[:,chunk*k:min(fs_heatmap.shape[1], chunk*(k+1))])
+    ax[k].axis('off')
+plt.savefig(f"{figure_folder}feature_selection_GRIDSEARCH_deduplicated.png", bbox_inches='tight', dpi=600)
+plt.show()
+    
+    
+    

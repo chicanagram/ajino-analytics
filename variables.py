@@ -883,29 +883,37 @@ xvar_list_dict = {
     ]
 }
 
-# %% FEATURE SELECTION
-features_selected_dict = {
-'Titer (mg/L)_14': ['Co_feed', 'Arg_feed', 'Riboflavin_feed', 'Pro_feed', 'His_feed', 'Folic acid_feed', 'Fe_feed', 'Pyridoxine_feed', 'K_feed', 'Nicotinamide_feed', 'Uridine_feed', 'Zn_basal', 'DO', 'pH', 'feed vol'],
-'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Lys_basal', 'Uridine_feed', 'P_feed', 'Asp_basal', 'Thr_feed', 'Folic acid_basal', 'Biotin_basal', 'DO', 'pH', 'feed vol'],
-'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Folic acid_basal', 'Thr_feed', 'Nicotinamide_basal', 'Cu_feed', 'Asn_feed', 'Uridine_feed', 'Lys_basal', 'DO', 'pH', 'feed vol'],
-'galactosylation_14': ['Asp_basal', 'Ser_basal', 'Thr_basal', 'Co_basal', 'Folic acid_basal', 'K_basal', 'Pro_feed', 'Trp_basal', 'Choline_feed', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
-} 
+# %% FEATURE SELECTIONS
 
-## MIN # OF FEATURES
-# features_selected_dict = {
-# 'Titer (mg/L)_14': ['Pro_feed', 'Co_feed', 'Thr_feed', 'Riboflavin_feed', 'Met_feed', 'Folic acid_feed', 'Pyridoxine_feed', 'Zn_basal', 'Zn_feed', 'Cyanocobalamin_basal', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
-# 'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'DO', 'pH', 'feed vol'],
-# 'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'DO', 'pH', 'feed vol'],
-# 'galactosylation_14': ['Asp_basal', 'Folic acid_basal', 'Ser_basal', 'Co_basal', 'Trp_basal', 'Thr_basal', 'Nicotinamide_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
-# } 
-
-features_selected_dict = {
-'Titer (mg/L)_14': ['Nicotinamide_feed', 'Cyanocobalamin_basal', 'DO', 'pH', 'feed vol'], #
-'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
-'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
-'galactosylation_14': ['Folic acid_basal', 'Thr_basal', 'Trp_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
-} 
-
+feature_selections = {
+    '_initial_try': {
+    'Titer (mg/L)_14': ['Co_feed', 'Arg_feed', 'Riboflavin_feed', 'Pro_feed', 'His_feed', 'Folic acid_feed', 'Fe_feed', 'Pyridoxine_feed', 'K_feed', 'Nicotinamide_feed', 'Uridine_feed', 'Zn_basal', 'DO', 'pH', 'feed vol'],
+    'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Lys_basal', 'Uridine_feed', 'P_feed', 'Asp_basal', 'Thr_feed', 'Folic acid_basal', 'Biotin_basal', 'DO', 'pH', 'feed vol'],
+    'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Folic acid_basal', 'Thr_feed', 'Nicotinamide_basal', 'Cu_feed', 'Asn_feed', 'Uridine_feed', 'Lys_basal', 'DO', 'pH', 'feed vol'],
+    'galactosylation_14': ['Asp_basal', 'Ser_basal', 'Thr_basal', 'Co_basal', 'Folic acid_basal', 'K_basal', 'Pro_feed', 'Trp_basal', 'Choline_feed', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
+    },
+    
+    '_knowledge-opt': {
+    'Titer (mg/L)_14': ['Met_feed', 'Pro_feed', 'Mg_feed', 'Tyr_basal', 'Uridine_feed', 'Riboflavin_feed', 'Pro_basal', 'Met_basal', 'Zn_feed', 'DO', 'pH', 'feed vol'],
+    'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Uridine_feed', 'Thr_basal', 'Thr_feed', 'Pro_feed', 'Ser_basal', 'Ser_feed', 'Asn_basal', 'DO', 'pH', 'feed vol'],
+    'fucosylation_14': ['Riboflavin_basal', 'Riboflavin_feed', 'Thr_basal', 'Folic acid_basal', 'Asn_feed', 'Thr_feed', 'Uridine_feed', 'Ser_feed', 'Pyridoxine_feed', 'DO', 'pH', 'feed vol'],
+    'galactosylation_14': ['Ser_basal', 'Thr_basal', 'Folic acid_basal', 'Riboflavin_feed', 'Asn_basal', 'Asn_feed', 'Pyridoxine_basal', 'Thr_feed', 'Riboflavin_basal', 'DO', 'pH', 'feed vol'],
+    },
+    
+    '_model-opt': {
+    'Titer (mg/L)_14': ['Co_feed', 'Thr_feed', 'His_feed', 'Riboflavin_feed', 'Fe_feed', 'Tyr_basal', 'Pantothenic  acid_feed', 'Co_basal', 'DO', 'pH', 'feed vol'],
+    'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Choline_feed', 'Lys_basal', 'Leu_feed', 'Ca_feed', 'P_feed', 'Asp_basal', 'DO', 'pH', 'feed vol'],
+    'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Nicotinamide_basal', 'Tyr_basal', 'Ca_feed', 'Leu_basal', 'Cu_basal', 'K_feed', 'DO', 'pH', 'feed vol'],
+    'galactosylation_14': ['Folic acid_basal', 'Asp_basal', 'Co_basal', 'Trp_basal', 'Nicotinamide_basal', 'K_basal', 'Choline_basal', 'Choline_feed', 'DO', 'pH', 'feed vol']
+    },
+                        
+    '_compactness-opt': {
+    'Titer (mg/L)_14': ['Nicotinamide_feed', 'Cyanocobalamin_basal', 'DO', 'pH', 'feed vol'], #
+    'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
+    'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
+    'galactosylation_14': ['Folic acid_basal', 'Thr_basal', 'Trp_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
+    },
+    }
 
 
 #%% DOMAIN KNOWLEDGE 
