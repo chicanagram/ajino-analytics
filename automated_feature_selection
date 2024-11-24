@@ -11,7 +11,7 @@ import pandas as pd
 from scipy.stats import rankdata
 import matplotlib.pyplot as plt
 from variables import data_folder, yvar_list_key, features_to_boost_dict, process_features, xvar_list_dict, feature_selections
-from model_utils import run_trainval_test
+from model_utils import run_trainval_test, plot_feature_importance_barplots_bymodel
 from plot_utils import figure_folder, heatmap
 from utils import sort_list, get_XYdata_for_featureset
 
@@ -22,6 +22,8 @@ def parse_model_type(f):
         model_type = 'lasso'
     elif f.find('plsr')>-1:
         model_type = 'plsr'
+    elif f.find('xgb')>-1:
+        model_type = 'xgb'
     return model_type
                 
 def adapt_dfrow(dfrow_to_adapt, input_suffix, output_suffix, xvar_list_final, xvar_to_ignore=['DO', 'feed %', 'feed vol', 'pH']): 
@@ -86,6 +88,35 @@ def get_color_list_bycluster(cluster_df, xvar_list, num_clusters=24, ncolors_in_
     color_list = [custom_palette[cluster_label] for cluster_label in cluster_labels]
     return color_list, cluster_labels
     
+
+def convert_fstxt_to_dict_list(fs_txt_list, yvar_list, xvar_list):
+    fs_all_list = []
+    fs_idxs_all_list = []
+    fs_dict_list = []
+    fs_idxs_dict_list = []
+    for k, fs_txt in enumerate(fs_txt_list):
+        fs_yvar_list = fs_txt.split('\n')
+        fs_dict = {}
+        fs_idxs_dict = {}
+        fs_all = []
+        fs_idxs_all = []
+        for i, yvar in enumerate(yvar_list):
+            fs_yvar = fs_yvar_list[i][3:].split(', ')
+            fs_idxs_yvar = [xvar_list.index(xvar) for xvar in fs_yvar]
+            fs_dict[yvar] = fs_yvar
+            fs_idxs_dict[yvar] = fs_idxs_yvar
+            for idx, xvar in zip(fs_idxs_yvar, fs_yvar):
+                if idx not in fs_idxs_all:
+                    fs_idxs_all.append(idx)
+                    fs_all.append(xvar)
+        fs_dict_list.append(fs_dict)
+        fs_idxs_dict_list.append(fs_idxs_dict)
+        fs_idxs_all.sort()
+        fs_idxs_all_list.append(fs_idxs_all)
+        fs_all.sort()
+        fs_all_list.append(fs_all)
+    return fs_all_list, fs_idxs_all_list, fs_dict_list, fs_idxs_dict_list
+
 #%% 
 class FeatureSelectionModule: 
     
@@ -159,7 +190,8 @@ class FeatureSelectionModule:
             'frac_paired_features': -1, 
             'corr_avg_selected': 1
             }
-        self.csv = []
+        self.csv_all = []
+        self.csv_avg = []
         self.save_interval = save_interval
         self.csv_columns = ['i', 'features_selected', 'num_unique_features', 'obj_fn'] + self.objfn_component_names + self.fs_param_names
         self.csv_fpath = csv_fpath
@@ -196,14 +228,14 @@ class FeatureSelectionModule:
             
     def add_feature_importance_scores(self, yvar, df, scorecard):
         # average scores from first 4 rows (MC_rf_SHAP, MC_rf_RFE, MC_rf_coef, MC_plsr_coef)
-        fs_avg = np.nanmean(df.iloc[:4, :].to_numpy(), axis=0)
+        fs_avg = np.nanmean(df.iloc[:6, :].to_numpy(), axis=0)
         scorecard += fs_avg*self.fs_avg_weight
         if self.plot_scorecards:
             plot_colorcoded_barplot(scorecard, yvar, self.xvar_list, width=0.8, color_list=self.color_list, annotate_xvar=self.knowledge_features_idxs_dict[yvar], figtitle=f'{yvar}: after fs_avg', savefig=None)
         return scorecard        
         
     def add_distributed_lasso_scores(self, yvar, df, scorecard):
-        lasso_coefs = df.iloc[4,:]
+        lasso_coefs = df.iloc[6,:]
         lasso_coefs_nonzero = lasso_coefs[lasso_coefs>0]
         lasso_nonzero_xvar = list(lasso_coefs_nonzero.index)
         lasso_distributed_scores = np.zeros((len(lasso_coefs_nonzero), len(self.xvar_list))) 
@@ -413,46 +445,58 @@ class FeatureSelectionModule:
     def compose_results_df(self, objfun, features_selected_dict, xvars_unique_count_dict):
         
         # initialize row 
-        row_dict = {'i': self.ncalls_count}
-        
-        # format features selected cell
+        row_dict_avg = {'i': self.ncalls_count}
+        row_dict_all = []
+        # format features selected cell AND update row_dict_all
         features_txt = ''
         for i, (yvar, flist) in enumerate(features_selected_dict.items()): 
-            features_txt += f'{i}: ' + ', '.join(flist) 
+            flist_txt = ', '.join(flist) 
+            features_txt += f'{i}: ' + flist_txt
             if i<len(self.yvar_list)-1: 
                 features_txt += '\n'
-        row_dict.update({'features_selected': features_txt})
+            row_dict_all += [
+                {**{'i': f'{self.ncalls_count}-{i}', 'features_selected': flist_txt, 'num_unique_features':len(flist)}, 
+                 **self.objfn_component_vals[yvar],
+                 **self.fs_settings
+                 }]
+            
+        row_dict_avg.update({'features_selected': features_txt})
         
         # get number of unique features
-        row_dict.update({'num_unique_features': len(xvars_unique_count_dict)})
+        row_dict_avg.update({'num_unique_features': len(xvars_unique_count_dict)})
         
         # get overall objective function value 
-        row_dict.update({'obj_fn': round(objfun,3)})
+        row_dict_avg.update({'obj_fn': round(objfun,3)})
         
-        # get average objfn component values
+        # AVERAGE objfn component values
         objfn_component_avg = pd.DataFrame(self.objfn_component_vals).transpose().mean(axis=0).round(4).to_dict()
-        row_dict.update(objfn_component_avg)
+        row_dict_avg.update({k:v for k, v in objfn_component_avg.items() if k!='obj_fn'})
         
         # get feature selection parameters
-        row_dict.update(self.fs_settings)
+        row_dict_avg.update(self.fs_settings)
         
         # append to existing data
-        self.csv.append(row_dict)
+        self.csv_avg.append(row_dict_avg)
+        self.csv_all += row_dict_all
         
         # append to end of existing csv
         if self.csv_fpath is not None and self.ncalls_count%self.save_interval==0:
             # convert list of dicts to dataframe
-            self.csv = pd.DataFrame(self.csv, columns=self.csv_columns)
+            self.csv_avg = pd.DataFrame(self.csv_avg, columns=self.csv_columns)
+            self.csv_all = pd.DataFrame(self.csv_all, columns=self.csv_columns)
             if self.ncalls_count==self.save_interval: 
                 # start a new CSV if this is the first save
-                self.csv.to_csv(self.csv_fpath, index=False)
+                self.csv_avg.to_csv(self.csv_fpath, index=False)
+                self.csv_all.to_csv(self.csv_fpath[:-4]+'_all.csv', index=False)
             else:
                 # else append to the end of existing file
-                self.csv.to_csv(self.csv_fpath, mode='a', index=False, header=False)
+                self.csv_avg.to_csv(self.csv_fpath, mode='a', index=False, header=False)
+                self.csv_all.to_csv(self.csv_fpath[:-4]+'_all.csv', mode='a', index=False, header=False)
             print('Updated CSV.')
             
-            # refresh self.csv for next batch of data
-            self.csv = []
+            # refresh self.csv_avg for next batch of data
+            self.csv_avg = []
+            self.csv_all = []
             
         
     def calculate_objective_function(self,
@@ -491,6 +535,7 @@ class FeatureSelectionModule:
             objfun_yvar = 0
             for comp in self.objfn_component_names:
                 objfun_yvar += self.objfn_component_vals[yvar][comp] * self.objfn_component_wts[comp]
+                self.objfn_component_vals[yvar]['obj_fun'] = objfun_yvar
             objfun += objfun_yvar
         
         print(self.ncalls_count, 'OBJECTIVE FUNCTION (SUM):', round(objfun, 3), '\n')
@@ -505,7 +550,6 @@ class FeatureSelectionModule:
 
 
 #%% 
-
 
 fs_settings_dict = {
     '_knowledge-opt': {
@@ -551,13 +595,14 @@ fs_settings_dict = {
     
     }
 
-fs_settings_to_test = ['_model-opt'] #  ['model-biased', 'knowledge-biased'] #  
+fs_settings_to_test = ['_knowledge-opt'] #  ['model-biased', 'knowledge-biased'] #  
 plot_scorecards = True
-print_progress = False
+print_progress = True
 feature_selections_bysetting = {}
 for fs in fs_settings_to_test: 
     fs_settings = fs_settings_dict[fs]
-    OptFeat = FeatureSelectionModule('X1Y0', yvar_list_key, features_to_boost_dict, plot_scorecards=plot_scorecards, print_progress=print_progress, num_clusters=24)
+    OptFeat = FeatureSelectionModule('X1Y0', yvar_list_key, features_to_boost_dict, 
+                                     plot_scorecards=plot_scorecards, print_progress=print_progress, num_clusters=24)
     # select features
     features_selected_dict, xvars_unique_count_dict, corr_mat_selected, kfold_summary = OptFeat.run_feature_selection(fs_settings, fs)
     # calculate objective function based on selected features
@@ -610,64 +655,123 @@ optres = optimize.brute(OptFeat.calculate_objective_function, fs_params_ranges, 
 print('Best fs parameters:', optres[0])
 print('Best results:', OptFeat.calculate_objective_function(optres[0]))
 
+
 #%% Visualize gridsearch results
-csv_fpath = f'{data_folder}feature_selection_GRIDSEARCH.csv'
-fs_res = pd.read_csv(csv_fpath, index_col='i')
-print(len(fs_res))
-fs_res = fs_res.drop_duplicates(subset=['features_selected'])
-# fs_res.to_csv(csv_fpath[:-4]+'_deduplicated.csv')
-print(len(fs_res))
+def plot_fs_grid(fs_idxs_all_list, xvar_list, nrows=6, figtitle=None): 
+    # get heatmap
+    fs_heatmap = np.zeros((len(xvar_list), len(fs_idxs_all_list)))
+    for i in range(len(fs_idxs_all_list)):
+        fs_idxs_all = fs_idxs_all_list[i]
+        fs_heatmap[np.array(fs_idxs_all), i] = 1
+    # plot heatmap
+    chunk = int(np.ceil(fs_heatmap.shape[1]/nrows))
+    fig, ax = plt.subplots(nrows,1, figsize=(40,len(xvar_list)/chunk*40))
+    for k in range(nrows):  
+        ax[k].imshow(fs_heatmap[:,chunk*k:min(fs_heatmap.shape[1], chunk*(k+1))])
+        ax[k].axis('off')
+    if figtitle is not None:
+        plt.suptitle(figtitle, y=0.92, fontsize=8)
+    plt.savefig(f"{figure_folder}feature_selection_GRIDSEARCH_deduplicated.png", bbox_inches='tight', dpi=600)
+    plt.show()
+    
+    fs_heatmap = pd.DataFrame(fs_heatmap.astype(int), index=xvar_list, columns=range(1, fs_heatmap.shape[1]+1)) 
+    return fs_heatmap
 
-fs_res = fs_res.sort_values(by='obj_fn')
-fs_txt_list = fs_res['features_selected'].tolist()
-
-def convert_fstxt_to_dict_list(fs_txt_list, yvar_list, xvar_list):
-    fs_all_list = []
-    fs_idxs_all_list = []
-    fs_dict_list = []
-    fs_idxs_dict_list = []
-    for k, fs_txt in enumerate(fs_txt_list):
-        fs_yvar_list = fs_txt.split('\n')
-        fs_dict = {}
-        fs_idxs_dict = {}
-        fs_all = []
-        fs_idxs_all = []
-        for i, yvar in enumerate(yvar_list):
-            fs_yvar = fs_yvar_list[i][3:].split(', ')
-            fs_idxs_yvar = [xvar_list.index(xvar) for xvar in fs_yvar]
-            fs_dict[yvar] = fs_yvar
-            fs_idxs_dict[yvar] = fs_idxs_yvar
-            for idx, xvar in zip(fs_idxs_yvar, fs_yvar):
-                if idx not in fs_idxs_all:
-                    fs_idxs_all.append(idx)
-                    fs_all.append(xvar)
-        fs_dict_list.append(fs_dict)
-        fs_idxs_dict_list.append(fs_idxs_dict)
-        fs_idxs_all.sort()
-        fs_idxs_all_list.append(fs_idxs_all)
-        fs_all.sort()
-        fs_all_list.append(fs_all)
-    return fs_all_list, fs_idxs_all_list, fs_dict_list, fs_idxs_dict_list
-
-        
 xvar_list_all = xvar_list_dict[1]
-fs_all_list, fs_idxs_all_list, fs_dict_list, fs_idxs_dict_list = convert_fstxt_to_dict_list(fs_txt_list, yvar_list_key, xvar_list_all)
-    
-#%%
-fs_heatmap = np.zeros((len(xvar_list_all), len(fs_idxs_all_list)))
-for i in range(len(fs_idxs_all_list)):
-    fs_idxs_all = fs_idxs_all_list[i]
-    fs_heatmap[np.array(fs_idxs_all), i] = 1
+csv_fpath_avg = f'{data_folder}feature_selection_GRIDSEARCH.csv'
+fs_res_avg = pd.read_csv(csv_fpath_avg, index_col='i')
+print(len(fs_res_avg))
+fs_res_avg = fs_res_avg.drop_duplicates(subset=['features_selected'])
+fs_res_avg = fs_res_avg.sort_values(by='obj_fn', ascending=False)
+print(len(fs_res_avg))
 
-nrows = 6
-chunk = int(np.ceil(fs_heatmap.shape[1]/nrows))
-fig, ax = plt.subplots(nrows,1, figsize=(40,len(xvar_list_all)/chunk*40))
-for k in range(nrows):  
-    print(chunk*k, chunk*(k+1))
-    ax[k].imshow(fs_heatmap[:,chunk*k:min(fs_heatmap.shape[1], chunk*(k+1))])
-    ax[k].axis('off')
-plt.savefig(f"{figure_folder}feature_selection_GRIDSEARCH_deduplicated.png", bbox_inches='tight', dpi=600)
-plt.show()
+
+# filter out selections that decrease model performance too much
+fs_res_avg = fs_res_avg[fs_res_avg['r2_increase']>-0.05]
+print(len(fs_res_avg))
+fs_txt_list = fs_res_avg['features_selected'].tolist()
+fs_res_avg.to_csv(csv_fpath[:-4]+'_deduplicated.csv')
+
+# get overall feature selections and plot heatmap, and save as csv
+fs_all_list, fs_idxs_all_list, fs_dict_list, fs_idxs_dict_list = convert_fstxt_to_dict_list(fs_txt_list, yvar_list_key, xvar_list_all)
+fs_heatmap = plot_fs_grid(fs_idxs_all_list, xvar_list_all, nrows=6, figtitle='all feature selected')
+fs_heatmap.to_csv(f'{data_folder}feature_selection_GRIDSEARCH_array.csv')
+
+# get feature selections for each yvariable
+csv_fpath_all = f'{data_folder}feature_selection_GRIDSEARCH_all.csv'
+fs_res_all = pd.read_csv(csv_fpath_all, index_col='i')
+ncalls_yvaridx = list(fs_res_all.index)
+yvar_idx = [int(x[-1]) for x in ncalls_yvaridx]
+fs_res_all.insert(0, 'yvar_idx', yvar_idx)
+
+fs_yvar_dict = {}
+fs_idxs_yvar_dict = {}
+fs_df_dict = {}
+for i, yvar in enumerate(yvar_list_key):
+    fs_res_yvar = fs_res_all[fs_res_all['yvar_idx']==i]
+    fs_prefilt_list = [sort_list(fs_prefilt.split(', ')) for fs_prefilt in fs_res_yvar['features_selected'].tolist()]
+    fs_res_yvar['features_selected'] = fs_prefilt_list
+    print(yvar, len(fs_res_yvar))
+    fs_res_yvar.drop_duplicates(subset=['features_selected'])
+    fs_res_yvar = fs_res_yvar.sort_values(by='obj_fn', ascending=False)
+    fs_res_yvar = fs_res_yvar[fs_res_yvar['r2_increase']>-0.02]
+    fs_res_yvar.to_csv(csv_fpath[:-4]+f'_deduplicated_{i}.csv')
+    fs_df_dict[yvar] = fs_res_yvar
+    print(yvar, len(fs_res_yvar))
     
-    
-    
+    fs_yvar_dict[yvar] = fs_res_yvar['features_selected'].tolist()
+    fs_idxs_yvar_dict[yvar] = []
+    for fs_yvar in fs_yvar_dict[yvar]:
+        fs_idxs_yvar = [xvar_list_all.index(xvar) for xvar in fs_yvar]
+        fs_idxs_yvar_dict[yvar].append(fs_idxs_yvar)
+    fs_heatmap_yvar = plot_fs_grid(fs_idxs_yvar_dict[yvar], xvar_list_all, nrows=10, figtitle=None) # f'{yvar}: features selected')
+    fs_heatmap_yvar.to_csv(f'{data_folder}feature_selection_GRIDSEARCH_array_{i}.csv')
+
+
+# %% cluster feature sets
+def get_fs_cluster_avg_performance(fs_df, kmeans_labels, print_top_fs=False): 
+    col_to_avg = [ 
+        'obj_fn',
+        'r2_increase',
+        'frac_knowledge_features',
+        'frac_allfeatures_selected',
+        'frac_paired_features',
+        'corr_avg_selected',
+     ]
+    cluster_res = {}
+    unique, counts = np.unique(kmeans_labels, return_counts=True)
+    for label, count in zip(unique, counts): 
+        cluster_res[label] = {'count': count}
+        label_idxs = np.argwhere(kmeans_labels==label)[0]
+        fs_df_bylabel = fs_df.iloc[label_idxs][['features_selected']+col_to_avg].sort_values(by='obj_fn')
+        if print_top_fs:
+            print(f'Cl{label}:', *eval(fs_df_bylabel.iloc[0]['features_selected']))
+        fs_df_label_mean = fs_df_bylabel.iloc[1:,:].mean(axis=0).to_dict()
+        cluster_res[label].update(fs_df_label_mean)
+        # print(fs_df_bylabel.iloc[0][col_to_avg])
+    return cluster_res
+
+def get_fs_clusters(fs_df, fs_arr, xvar_list, n_kmeans_clusters=5, random_state=0, print_top_fs=False):
+    from sklearn.cluster import KMeans
+    n_kmeans_clusters = 5
+    kmeans = KMeans(n_clusters=n_kmeans_clusters, random_state=random_state, n_init="auto").fit(fs_arr.to_numpy())
+    fs_kmeans_df = pd.DataFrame(kmeans.cluster_centers_, columns=xvar_list)
+    kmeans_labels = kmeans.labels_
+    cluster_res = get_fs_cluster_avg_performance(fs_df, kmeans_labels, print_top_fs=print_top_fs)
+    fig, ax = plt.subplots(1,1, figsize=(20,3))
+    heatmap(kmeans.cluster_centers_, row_labels=[f'{label} ({label_dict["count"]}), frKnow={round(label_dict["frac_knowledge_features"],2)}, R2inc={round(label_dict["r2_increase"],3)}' for label, label_dict in cluster_res.items()], col_labels=xvar_list_all, show_gridlines=False)
+    plt.show()
+    return kmeans, fs_kmeans_df
+
+fs_df = pd.read_csv(f'{data_folder}feature_selection_GRIDSEARCH_deduplicated.csv')
+fs_arr = pd.read_csv(f'{data_folder}feature_selection_GRIDSEARCH_array.csv', index_col=0).transpose()
+kmeans_all, fs_kmeans_df_all = get_fs_clusters(fs_df, fs_arr, xvar_list_all, n_kmeans_clusters=5, random_state=0)
+
+for i, yvar in enumerate(yvar_list_key):
+    print('\n', yvar)
+    fs_df_yvar = pd.read_csv(f'{data_folder}feature_selection_GRIDSEARCH_deduplicated_{i}.csv')
+    wts = OptFeat.objfn_component_wts
+    fs_df_yvar['obj_fn'] = wts['r2_increase']*fs_df_yvar['r2_increase'] + wts['frac_knowledge_features']*fs_df_yvar['frac_knowledge_features'] + wts['frac_allfeatures_selected']*fs_df_yvar['frac_allfeatures_selected'] + wts['frac_paired_features']*fs_df_yvar['frac_paired_features'] + wts['corr_avg_selected']*fs_df_yvar['corr_avg_selected'] 
+    fs_arr_yvar = pd.read_csv(f'{data_folder}feature_selection_GRIDSEARCH_array_{i}.csv', index_col=0).transpose()
+    kmeans_yvar, fs_kmeans_df_yvar = get_fs_clusters(fs_df_yvar, fs_arr_yvar, xvar_list_all, n_kmeans_clusters=5, random_state=0, print_top_fs=True)
+

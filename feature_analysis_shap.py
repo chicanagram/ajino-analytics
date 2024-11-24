@@ -12,15 +12,16 @@ import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Lasso
+from xgboost import XGBRegressor
 import shap
-from variables import model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key, xvar_sublist_sets_bymodeltype
+from variables import model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key
 from model_utils import fit_model_with_cv, get_feature_importances, plot_feature_importance_heatmap, plot_feature_importance_barplots, plot_feature_importance_barplots_bymodel, plot_model_metrics, select_subset_of_X, order_features_by_importance
 from plot_utils import figure_folder, model_cmap, convert_figidx_to_rowcolidx
 from get_datasets import data_folder, get_XYdata_for_featureset
 
 
 #%%
-featureset_list =  [(1,0)]
+featureset_list =  [(5,0)]
 models_to_eval_list = ['randomforest'] # ['lasso']# ['randomforest','plsr', 'lasso'] #  
 dataset_suffix = ''
 yvar_list = yvar_list_key
@@ -57,11 +58,14 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             elif model_type=='randomforest':
                 n_estimators = model_dict['n_estimators']
                 model = RandomForestRegressor(n_estimators=n_estimators, random_state=0)
+            elif model_type=='xgb':
+                n_estimators = model_dict['n_estimators']
+                model = XGBRegressor(n_estimators=n_estimators, random_state=0)
             
             y = Y[:,i]
             model.fit(X,y)
             ypred = model.predict(X)
-            if model_type in ['randomforest']:
+            if model_type in ['randomforest', 'xgb']:
                 # explainer = shap.Explainer(model, X_df)
                 explainer = shap.TreeExplainer(model, X_df, feature_perturbation='interventional')
             elif model_type in ['plsr', 'lasso']:
@@ -69,7 +73,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 
             shap_values = explainer(X_df)
             shap.plots.bar(shap_values.abs.mean(0), max_display=20)
-            # shap.plots.beeswarm(shap_values, max_display=20)
+            shap.plots.beeswarm(shap_values, max_display=20)
             # clustering = shap.utils.hclust(X_df, y)
             # shap.plots.bar(shap_values.abs.mean(0), clustering=clustering, clustering_cutoff=0.1)
             

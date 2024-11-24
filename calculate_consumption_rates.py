@@ -12,11 +12,15 @@ import matplotlib.pyplot as plt
 from scipy.stats import spearmanr, pearsonr
 from variables import data_folder, var_dict_all
 from plot_utils import figure_folder, remove_nandata,convert_figidx_to_rowcolidx, heatmap
+from utils import get_corrmat_corrlist
+
 
 #%%
 # nutrient_inputs = ['Glucose (g/L)'] + var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
 nutrient_inputs = var_dict_all['AA'] + var_dict_all['VT'] + var_dict_all['MT'] + var_dict_all['Nuc, Amine']
 nutrients_calculated_list = []
+NSRC_byexpidx_byday = []
+NSRC_byexpidx_byday_index = []
 
 # load data
 with open(f'{data_folder}DATA.pkl', 'rb') as handle:
@@ -66,19 +70,62 @@ for exp_idx, d_exp in d.items():
                 # calculate consumption rate for each feed day
                 rate = y_diff_numerator / ivcd_diff_denominator
                 rates.append(rate)
+                
             rates = np.array(rates)
             d_exp[nutrient]['rate'] = rates
             # get the average rate
             d_exp[nutrient]['rate_avg'] = np.mean(rates)
-            # print(nutrient, d_exp[nutrient]['rate_avg'])
+            
+            # update NSRC dataframe dict
+            NSRC_byexpidx_byday.append({f'{exp_idx}_{day}': rates[idx] for idx, day in enumerate(feed_days_to_sample[:-1])})
+            NSRC_byexpidx_byday_index.append(nutrient)
             
         # update overall dict
         d.update({exp_idx: d_exp})
+        
 
 # save data
 with open(f'{data_folder}DATA.pkl', 'wb') as handle:
     pickle.dump(d, handle)
     
+# save dataframe of NSRC values"
+NSRC_df = pd.DataFrame(NSRC_byexpidx_byday).transpose()
+NSRC_df.columns = NSRC_byexpidx_byday_index
+
+#%% get correlations between NSRC features
+def same_merge(x): return ','.join(x[x.notnull()].astype(str))
+NSRC_df_merged = NSRC_df.groupby(level=0, axis=1).apply(lambda x: x.apply(same_merge, axis=1))
+NSRC_df_merged[NSRC_df_merged.isnull()] = np.nan
+for col in NSRC_df_merged:
+    NSRC_df_merged[col] = pd.to_numeric(NSRC_df_merged[col], errors='coerce')
+    
+NSRC_df_merged = NSRC_df_merged[[c for c in var_dict_all['media_components'] if c in NSRC_df_merged]]
+NSRC_df_merged.to_csv(f'{data_folder}NSRC.csv')
+
+csv_fname = f'{data_folder}NSRC_correlation_matrix'
+savefig = f'{figure_folder}NSRC_correlations'
+NSRC_corr_mat, NSRC_corr_all = get_corrmat_corrlist(NSRC_df_merged, sort_corrlist=True, csv_fname=csv_fname,
+                                          savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True)
+
+#%% plot NSRC values for all nutrients for all samples
+
+nrows, ncols = 5, 8
+fig, ax = plt.subplots(nrows,ncols, figsize=(30,18))
+expidx_day_arr = np.array([x.split('_') for x in list(NSRC_df_merged.index)])
+expidxs = expidx_day_arr[:,0]
+days = np.array([int(d) for d in expidx_day_arr[:,1]])
+expidx_list = list(np.unique(expidxs))
+for figidx, nutrient in enumerate(NSRC_df_merged):
+    row_idx, col_idx = convert_figidx_to_rowcolidx(figidx, ncols)
+    for expidx in expidx_list:
+        idx_exp = np.argwhere(expidxs==expidx).reshape(-1,)
+        days_exp = days[idx_exp]
+        nsrc_exp = NSRC_df_merged.iloc[idx_exp][nutrient].to_numpy()
+        ax[row_idx, col_idx].plot(days_exp,nsrc_exp, alpha=0.5, linewidth=0.5)
+    ax[row_idx, col_idx].set_title(nutrient)
+plt.show()
+
+
 #%% visualize relationships and get correlations between NSRCs and CQAs
 
 cqas_to_analyse = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation']

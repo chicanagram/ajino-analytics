@@ -9,11 +9,10 @@ import numpy as np
 import pandas as pd
 import pickle
 import matplotlib.pyplot as plt
-from variables import model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key, xvar_sublist_sets_bymodeltype
+from variables import data_folder, model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key, model_cmap
 from model_utils import fit_model_with_cv, get_feature_importances, plot_feature_importance_heatmap, plot_feature_importance_barplots, plot_feature_importance_barplots_bymodel, plot_model_metrics, plot_model_metrics_cv, select_subset_of_X, order_features_by_importance
 from plot_utils import figure_folder, model_cmap, convert_figidx_to_rowcolidx
-from get_datasets import data_folder, get_XYdata_for_featureset
-
+from utils import get_XYdata_for_featureset
 
 #%% Evaluate different feature sets and model parameters 
 scoring = 'mae'
@@ -21,9 +20,10 @@ featureset_list = [(1,0)] # [(1,0), (0,0)] #
 # dataset_suffix = '_avg' 
 dataset_suffix = ''
 model_params_to_eval = [
-    {'model_type': 'randomforest', 'params_to_eval': ('n_estimators', [20,40,60,80,100,120,140,160,180])},
-    {'model_type': 'plsr', 'params_to_eval': ('n_components',[2,3,4,5,6,7,8,9,10,11,12,14])},
-    {'model_type': 'lasso', 'max_iter':500000, 'params_to_eval': ('alpha', [0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 20, 50, 100])},
+    {'model_type': 'xgb', 'params_to_eval': ('n_estimators', [20,40,60,80,100,120,140,160,180])},
+    # {'model_type': 'randomforest', 'params_to_eval': ('n_estimators', [20,40,60,80,100,120,140,160,180])},
+    # {'model_type': 'plsr', 'params_to_eval': ('n_components',[2,3,4,5,6,7,8,9,10,11,12,14])},
+    # {'model_type': 'lasso', 'max_iter':500000, 'params_to_eval': ('alpha', [0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 20, 50, 100])},
     ]
 
 # get relevant dataset with chosen features
@@ -33,7 +33,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
     modelparam_metrics_df = []
     
-    for i, yvar in enumerate(yvar_list): 
+    for i, yvar in enumerate(yvar_list_key): 
         print(yvar)
         y = Y[:,i]
         
@@ -105,7 +105,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
 #%% Evaluate individual model at a time and get metrics, and feature coefficients / importances 
 
 featureset_list =  [(1,0)] # 
-models_to_eval_list = ['randomforest','plsr', 'lasso'] # ['lasso']#['randomforest'] # 
+models_to_eval_list = ['randomforest', 'xgb', 'plsr', 'lasso'] # ['randomforest']# 
 # dataset_suffix = '_avg'
 dataset_suffix = ''
 f = 1
@@ -154,7 +154,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     feature_coef_df = pd.DataFrame(feature_coef_df)
     feature_coef_df_ABS = feature_coef_df.copy()
     feature_coef_df_ABS.iloc[:,2:] = np.abs(feature_coef_df_ABS.iloc[:,2:].to_numpy())
-    plot_feature_importance_barplots_bymodel(feature_coef_df_ABS, yvar_list=yvar_list_key, xvar_list=xvar_list, model_list=models_to_eval_list, order_by_feature_importance=False, label_xvar_by_indices=True, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, savefig=f'feature_prominence_barplots_{dataset_name}{dataset_suffix}', figtitle=f'Feature prominences for all y variables')
+    plot_feature_importance_barplots_bymodel(feature_coef_df_ABS, yvar_list=yvar_list_key, xvar_list=xvar_list, model_list=models_to_eval_list, order_by_feature_importance=False, label_xvar_by_indices=True, model_cmap=model_cmap, savefig=f'feature_prominence_barplots_{dataset_name}{dataset_suffix}', figtitle=f'Feature prominences for all y variables')
     
     # aggregate all model metrics and save CSV
     model_metrics_df = pd.DataFrame(model_metrics_df)
@@ -173,12 +173,12 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     figtitle = 'CV metrics for various models evaluated on all Y variables'
     savefig = f'{figure_folder}modelmetrics_allselectedmodels_allYvar_{dataset_name}{dataset_suffix}.png'
     plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list_key, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, suffix_list=['_train', '_cv'], figtitle=figtitle, savefig=savefig, model_cmap=model_cmap, plot_errors=False)
-   
+
     # generate scatter plots of ypred vs y
     for k, yvar_sublist in enumerate(yvar_sublist_sets[:1]):
     
         # iterate through yvar in sublist
-        fig, ax = plt.subplots(3,4, figsize=(27,18))
+        fig, ax = plt.subplots(len(models_to_eval_list),(len(yvar_sublist)), figsize=(27,18))
         for i, yvar in enumerate(yvar_sublist): 
             yvar_idx = k*len(yvar_sublist)+i
             y = Y[:,yvar_idx]

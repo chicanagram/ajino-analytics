@@ -9,9 +9,10 @@ Created on Sat Nov  9 10:49:46 2024
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from variables import data_folder, yvar_list_key, feature_selections
+from variables import data_folder, yvar_list_key, feature_selections, model_params, model_cmap
 from model_utils import run_trainval_test, plot_model_metrics_all
 from utils import sort_list, get_XYdata_for_featureset
+from plot_utils import convert_figidx_to_rowcolidx
 
 class OptimizeCQAs:
     def __init__(self, 
@@ -25,6 +26,7 @@ class OptimizeCQAs:
                  XSTD,
                  SURROGATE_MODELS,
                  yvar_list=yvar_list_key,
+                 models_to_evaluate=['randomforest','xgb'],
                  n_initial_points=20,
                  n_calls=200,
                  n_iter=1,
@@ -33,7 +35,8 @@ class OptimizeCQAs:
                  fuc_wt=1,
                  gal_wt=1,
                  csv_fpath=None,
-                 optimizer_random_state=None
+                 optimizer_random_state=None,
+                 plot_objective_plot=True
                  ): 
         
         self.ncalls_count = 0
@@ -48,6 +51,7 @@ class OptimizeCQAs:
         self.XMEAN = XMEAN
         self.XSTD = XSTD
         self.SURROGATE_MODELS = SURROGATE_MODELS
+        self.models_to_evaluate = models_to_evaluate
         self.bounds = bounds
         self.res0 = res0
         self.yvar_list = yvar_list
@@ -59,6 +63,7 @@ class OptimizeCQAs:
         self.csv_columns = ['i', 'obj_fn'] + self.yvar_list + self.features_opt
         self.csv_fpath = csv_fpath
         self.optimizer_random_state = optimizer_random_state
+        self.plot_objective_plot = plot_objective_plot
         print('Initial Obj Fn value (based on CQA predicitons from x0):', round(self.f(self.x_input_0),4))          
 
     def calculate_objective_function(self, res):
@@ -82,6 +87,7 @@ class OptimizeCQAs:
         # X0, features_selected_dict, yvar_list
         # idxs_opt for variables under consideration
         self.x = x
+        res_allmodels = {yvar:[] for yvar in self.yvar_list}
         res = {}
         for i, yvar in enumerate(self.yvar_list): 
             # get features used for model (yvar)
@@ -97,9 +103,12 @@ class OptimizeCQAs:
             x_input = x_input[idxs_features_selected]
             x_input = (x_input - self.XMEAN[idxs_features_selected])/self.XSTD[idxs_features_selected]
             # get model for yvar and perform prediction
-            model = self.SURROGATE_MODELS[yvar]
-            ypred = float(model.predict(x_input.reshape(1,-1)))
-            res.update({yvar: ypred})
+            for model_type in self.models_to_evaluate:
+                model = self.SURROGATE_MODELS[yvar][model_type]
+                ypred = float(model.predict(x_input.reshape(1,-1)))
+                res_allmodels[yvar].append(ypred)
+            # average results, if needed
+            res[yvar] = np.mean(np.array(res_allmodels[yvar]))
             print(f'{yvar}: {round(ypred,2)}', end=', ')
             
         # calculate objective function
@@ -139,7 +148,9 @@ class OptimizeCQAs:
             plt.show()
             
             # plot evaluations of optimizer
-            _ = plot_objective(optimizer_results[0], size=4, n_samples=100)
+            if self.plot_objective_plot:
+                _ = plot_objective(optimizer_results[0], size=4, n_samples=100)
+                plt.show()
         else: 
             self.csv['obj_fn_min'] = np.nan
             for ncall in range(len(self.csv)):
@@ -153,18 +164,22 @@ class OptimizeCQAs:
 
 
     def run(self, n_iter=1, optimizer='gp_minimize'):
-        from skopt import gp_minimize, forest_minimize
         # Surrogate minimization
         self.optimizer_name = optimizer
         optimizer_results = []
         for n in range(n_iter):
             if optimizer=='gp_minimize':
-                optres = gp_minimize(self.f, self.bounds, x0=self.x_input_0, n_calls=self.n_calls, random_state=n, n_initial_points=self.n_initial_points, random_state=self.optimizer_random_state)
+                from skopt import gp_minimize
+                optres = gp_minimize(self.f, self.bounds, x0=self.x_input_0, n_calls=self.n_calls, n_initial_points=self.n_initial_points, random_state=self.optimizer_random_state)
             elif optimizer=='forest_minimize':
-                optres = forest_minimize(self.f, self.bounds, x0=self.x_input_0, n_calls=self.n_calls, random_state=n, n_initial_points=self.n_initial_points, random_state=self.optimizer_random_state)
+                from skopt import forest_minimize
+                optres = forest_minimize(self.f, self.bounds, x0=self.x_input_0, n_calls=self.n_calls, n_initial_points=self.n_initial_points, random_state=self.optimizer_random_state)
             elif optimizer=='scipy_minimize':
                 from scipy.optimize import minimize
                 optres = minimize(self.f, x0=self.x_input_0, bounds=self.bounds)
+            elif optimizer=='annealing_minimize':
+                from scipy.optimize import dual_annealing
+                optres = dual_annealing(self.f, x0=self.x_input_0, bounds=self.bounds, maxiter=self.n_calls)
             optimizer_results.append(optres)
         return optimizer_results
     
@@ -208,26 +223,34 @@ print(feature_drop_test_res)
 X_featureset_idx, Y_featureset_idx = 1,0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 dataset_suffix = ''
-featureset_suffix = '_knowledge-opt' #'_model-opt'
+featureset_suffix = '_curated' # '_knowledge-opt' #'_model-opt'
 dataset_name_wsuffix = dataset_name + dataset_suffix
 Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
-models_to_eval_list = ['randomforest']
+models_to_eval_list = ['randomforest', 'xgb']
 
 yvar_list = yvar_list_key # ['Titer (mg/L)_14']# 
 features_selected_dict = feature_selections[featureset_suffix]
 
 # get results WITHOUT feature selection
-kfold_metrics_orig, kfold_metrics_avg_orig, SURROGATE_MODELS_orig = run_trainval_test(X, Y, yvar_list, xvar_list_all, xvar_list_all, dataset_name_wsuffix, featureset_suffix)
+kfold_metrics_orig, kfold_metrics_avg_orig, SURROGATE_MODELS_orig = run_trainval_test(X, Y, yvar_list, xvar_list_all, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
 
 # get results WITH feature selection
-kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS = run_trainval_test(X, Y, yvar_list, features_selected_dict, xvar_list_all, dataset_name_wsuffix, featureset_suffix)
+kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS = run_trainval_test(X, Y, yvar_list, features_selected_dict, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
 
 # combine results
 model_metrics_df_dict = {0: kfold_metrics_avg_orig, 1: kfold_metrics_avg}
-plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, suffix_list=['_train_avg', '_test_avg'], annotate_vals=True)
+plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list+['ENSEMBLE'], yvar_list, suffix_list=['_train_avg', '_test_avg'], annotate_vals=True)
 
 
 #%% DEFINE OPTIMIZATION INPUTS
+
+starting_point_list = ['best3'] # ['avg-Basal-D-Feed-a'] # ['best1', 'best2', 'best3'] # 
+minimizer_list = ['annealing_minimize'] # ['forest_minimize'] # ['gp_minimize', 'forest_minimize']
+wts = [3,1,0,0.2, 0.2] # titer_wt, man5_wt, fuc_wt, gal_wt
+n_calls = 1000
+n_iter = 1
+cap_DO_lbnd = False
+
 
 # get data and scaling constants
 df = pd.read_csv(f'{data_folder}X0Y0.csv', index_col=0)
@@ -239,9 +262,14 @@ df_good = df[(df['Titer (mg/L)_14']>9000) & (df['mannosylation_14']<12)].sort_va
 
 starting_point_dict = {
     # Basal-A, Feed-a, pH7, DO40, feed 6%
-    'avg_Basal-A-Feed-a': { 
-        'x0': df[(df['Basal medium']=='Basal-A') & (df['Feed medium']=='Feed-a') & (df['Feed medium']=='Feed-a')].loc[:, xvar_list_all].mean(axis=0),
-        'y0': df[(df['Basal medium']=='Basal-A') & (df['Feed medium']=='Feed-a') & (df['Feed medium']=='Feed-a') & (df['DO']==40) & (df['pH']==7) & (df['feed %']==6)].loc[:, yvar_list_key].mean(axis=0)
+    'avg-Basal-A-Feed-a': { 
+        'x0': df[(df['Basal medium']=='Basal-A') & (df['Feed medium']=='Feed-a')].loc[:, xvar_list_all].mean(axis=0),
+        'y0': df[(df['Basal medium']=='Basal-A') & (df['Feed medium']=='Feed-a') & (df['DO']==40) & (df['pH']==7) & (df['feed %']==6)].loc[:, yvar_list_key].mean(axis=0),
+        },
+    # Basal-D, Feed-a, pH7, DO40, feed 6%
+    'avg-Basal-D-Feed-a': { 
+        'x0': df[(df['Basal medium']=='Basal-D') & (df['Feed medium']=='Feed-a')].loc[:, xvar_list_all].mean(axis=0),
+        'y0': df[(df['Basal medium']=='Basal-D') & (df['Feed medium']=='Feed-a') & (df['DO']==40) & (df['pH']==7) & (df['feed %']==6)].loc[:, yvar_list_key].mean(axis=0)
         },
     # Basal-A, Feed-a, pH7.1, DO60, feed 8%
     'best1': {
@@ -260,15 +288,18 @@ starting_point_dict = {
         }           
     }
 
-starting_point_list = ['best1'] # ['best1', 'best2', 'best3'] # 
-minimizer_list = ['forest_minimize'] # ['gp_minimize', 'forest_minimize']
-wts = [2.5,1,0,0.2, 0.2] # titer_wt, man5_wt, fuc_wt, gal_wt
-n_calls = 350
-n_iter = 1
-cap_DO_lbnd = True
+# starting point parameters to fix
+starting_point_params_to_fix = {
+    # 'pH': 7,
+    # 'DO': 40,
+    # 'feed vol': 0.2335
+    }
 
+#%% 
 for starting_point in starting_point_list: 
     for minimizer in minimizer_list:
+        
+        print(minimizer, starting_point)
         # get best conditions in dataset
         x0 = starting_point_dict[starting_point]['x0'].to_numpy().reshape(-1)
         y0 = starting_point_dict[starting_point]['y0'].to_numpy()
@@ -279,10 +310,10 @@ for starting_point in starting_point_list:
         print('features_selected_idxs_dict:', features_selected_idxs_dict)
         
         # set feature indices to optimize
-        features_selected_all = ['feed vol', 'DO', 'pH']
         features_selected_all_ = []
         for yvar, features_selected_yvar in features_selected_dict.items():
-            features_selected_all_ += features_selected_yvar
+            features_selected_yvar_ = [feature for feature in features_selected_yvar if feature not in starting_point_params_to_fix]
+            features_selected_all_ += features_selected_yvar_
         features_selected_all = sort_list(list(set(features_selected_all_))) # sort and deduplicate list
         features_opt = features_selected_all.copy()
         idxs_opt = np.array([xvar_list_all.index(xvar) for xvar in features_opt])
@@ -298,7 +329,6 @@ for starting_point in starting_point_list:
             if feature=='DO' and cap_DO_lbnd:
                 lbnd = 40
             bounds.append((lbnd,ubnd))
-            
         bounds = tuple(bounds)
         
         # get average Y (CQA) values for starting condition
@@ -314,13 +344,16 @@ for starting_point in starting_point_list:
             csv_suffix = '_' + minimizer.split('_')[0] + f'_{starting_point}_{n}'
             csv_fpath = f'{data_folder}optimizeCQAs_wts={"-".join(str(x) for x in wts)}_ncalls={n_calls}{csv_suffix}.csv'
             OptCQA = OptimizeCQAs(x0, res0, features_selected_idxs_dict, features_opt, idxs_opt, bounds, XMEAN, XSTD, SURROGATE_MODELS, 
-                                 titer_wt=wts[0], man5_wt=wts[1], fuc_wt=wts[2], gal_wt=wts[3], n_calls=n_calls, csv_fpath=csv_fpath)
+                                  titer_wt=wts[0], man5_wt=wts[1], fuc_wt=wts[2], gal_wt=wts[3], 
+                                  n_calls=n_calls, optimizer_random_state=n, csv_fpath=csv_fpath)
             if minimizer == 'gp_minimize':
                 opt_res = OptCQA.run(n_iter=1, optimizer='gp_minimize')
             elif minimizer =='forest_minimize':
                 opt_res = OptCQA.run(n_iter=1, optimizer='forest_minimize')
             elif minimizer =='scipy_minimize': # doesn't really work
                 opt_res = OptCQA.run(n_iter=1, optimizer='scipy_minimize')
+            elif minimizer == 'annealing_minimize':
+                opt_res = OptCQA.run(n_iter=1, optimizer='annealing_minimize')
             
             # plot results
             OptCQA.show_results(opt_res)
@@ -335,18 +368,56 @@ for starting_point in starting_point_list:
             plt.show()
     
 
+#%% plot boxplots of average nutrient values
 
-#%% 
-csv_fpath = '../ajino-analytics-data/optimizeCQAs_wts=2-1-0-0.3-0.3_ncalls=350_gp_best1_0.csv'
-csv = pd.read_csv(csv_fpath, index_col=0)
+# # get original data
+exp_data = pd.read_csv(f'{data_folder}X0Y0.csv', index_col=0)
 
-# plot scatter of Titer vs Mannosylation
-plt.scatter(csv['Titer (mg/L)_14'], csv['mannosylation_14'], color='orange', s=6, alpha=0.5)
-plt.scatter(df['Titer (mg/L)_14'], df['mannosylation_14'], color='b', s=6, alpha=0.5)
+# get simulation data
+# csv_flist = [
+#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best3_0.csv',
+#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best3_0_7-20-8.csv',
+#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best2_7-20-6.csv',
+#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best1_7.1-60-8.csv'
+#     ]
+# csv = pd.read_csv(csv_fpath, index_col=0)
+
+simulation_data = OptCQA.csv
+plt.scatter(simulation_data['Titer (mg/L)_14'], simulation_data['mannosylation_14'], color='orange', s=6, alpha=0.5)
+plt.scatter(exp_data['Titer (mg/L)_14'], exp_data['mannosylation_14'], color='b', s=6, alpha=0.5)
 plt.legend(['In-silico exploration', 'Experimental data'])
 plt.xlabel('Titer (mg/L)_14')
 plt.ylabel('mannosylation_14')
 plt.title(f'{minimizer}: wts={", ".join(str(x) for x in wts)}, {starting_point}, iter{n}')
 plt.show()
+#%% 
+# initialize df for storing all results
+df_all_cols = ['exp_or_sim']+xvar_list_all+yvar_list_key
+df_all = pd.DataFrame(columns=df_all_cols)
+exp_data['exp_or_sim'] = 'exp'
+df_all = pd.concat([df_all, exp_data[df_all_cols]], ignore_index=True)
 
+# add simulation data
+simulation_starting_point = 'best3'
+x0 = starting_point_dict[simulation_starting_point]['x0'].to_dict()
+simulation_data['exp_or_sim'] = 'sim'
+for col, val in x0.items():
+    if col not in simulation_data:
+        simulation_data[col] = val
 
+df_all = pd.concat([df_all, simulation_data[df_all_cols]], ignore_index=True)
+
+#%%
+# filter by selected conditions
+df_exp_filt = df_all[(df_all['exp_or_sim']=='exp') & (df_all['Titer (mg/L)_14']>9000) & (df_all['mannosylation_14']<12)]
+df_sim_filt = df_all[(df_all['exp_or_sim']=='sim') & (df_all['Titer (mg/L)_14']>10000) & (df_all['mannosylation_14']<9)]
+df_all_filt = pd.concat([df_exp_filt, df_sim_filt], ignore_index=True)
+
+# get boxplots
+nrows, ncols = 5,6
+fig, ax = plt.subplots(nrows,ncols, figsize=(36,26))
+for i, feature in enumerate(features_opt):
+    row_idx, col_idx = convert_figidx_to_rowcolidx(i, ncols)
+    df_all_filt.boxplot(feature, by='exp_or_sim', ax=ax[row_idx,col_idx])
+fig.suptitle('Boxplot of feature conditions', y=0.93, fontsize=16)
+plt.show()

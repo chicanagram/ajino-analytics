@@ -23,6 +23,8 @@ def parse_model_type(f):
         model_type = 'lasso'
     elif f.find('plsr')>-1:
         model_type = 'plsr'
+    elif f.find('xgb')>-1:
+        model_type = 'xgb'
     return model_type
                 
 def adapt_dfrow(dfrow_to_adapt, input_suffix, output_suffix, xvar_list_final, xvar_to_ignore=['DO', 'feed %', 'feed vol', 'pH']): 
@@ -80,7 +82,7 @@ features_to_annotate = ['Asn', 'Gln', 'Ser', 'Thr', 'Met', 'Cys', 'Pro', 'Gly', 
 save_fig = True
 
 # get feature order if sorted by correlations
-sort_heatmap_by_clusters = True
+sort_heatmap_by_clusters = False
 cluster_df_sorted = pd.read_csv(f'{data_folder}features_by_cluster_corrdist.csv', index_col=0)
 num_clusters_list = [24]
 xvar_list_sorted_by_clusters = [xvar for xvar in cluster_df_sorted.columns.tolist() if xvar not in features_to_drop]
@@ -92,7 +94,7 @@ dataset_all = []
 
 # mean absolute SHAP values
 dataset_name = 'X1Y0'
-model_type_list = ['randomforest']
+model_type_list = ['randomforest', 'xgb']
 heatmap_rows_all += [f'MC_{model_type}_SHAP' for model_type in model_type_list]
 files_to_read = [f'feature_analysis_SHAP_{dataset_name}{dataset_suffix}_{model_type}.csv' for model_type in model_type_list]
 files_to_read_all += files_to_read
@@ -109,7 +111,7 @@ dataset_all += [dataset_name] * len(files_to_read)
 
 # feature importance scores
 dataset_name = 'X1Y0'
-model_type_list = ['randomforest', 'plsr', 'lasso']
+model_type_list = ['randomforest', 'xgb', 'plsr', 'lasso']
 heatmap_rows_all += [f'MC_{model_type}_coef_score' for model_type in model_type_list]
 if use_feature_rankings:
     files_to_read = [f'model_feature_importance_{dataset_name}{dataset_suffix}{kfold_suffix}.csv']*len(model_type_list)

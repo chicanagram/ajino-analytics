@@ -26,12 +26,12 @@ from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cq
 # %% get all XY feature correlations
 
 # get data from specific dataset
-X_featureset_idx, Y_featureset_idx = 1, 0
+X_featureset_idx, Y_featureset_idx = 5, 0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 # dataset_suffix = '_avg'
 dataset_suffix = ''
 csv_fname = f'{data_folder}{dataset_name}{dataset_suffix}_correlation_matrix'
-savefig = f'{figure_folder}{dataset_name}{dataset_suffix}_correlation_matrix'
+savefig = f'{figure_folder}{dataset_name}{dataset_suffix}_correlations'
 use_all_data = False
 
 Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
@@ -46,15 +46,24 @@ else:
     XYarr = np.concatenate((X, Y[:, :4]), axis=1)
     XYarr = pd.DataFrame(XYarr, columns=xvar_list+yvar_list[:4])
 
-# get correlation matrix
+# get correlation matrix for ALL MC + process + Y features
 corr_mat, corr_all = get_corrmat_corrlist(XYarr, sort_corrlist=True, csv_fname=csv_fname,
                                           savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=True)
 
+# get correlation matrix for MC Basal and MC Feed features separately
+xvar_list_basal = [xvar for xvar in xvar_list if xvar.find('_basal')>-1]
+X_basalonly = XYarr.loc[:,xvar_list_basal]
+corr_mat_basal, _ = get_corrmat_corrlist(X_basalonly, sort_corrlist=True, csv_fname=csv_fname+'_basalonly',
+                                          savefig=savefig+'_basalonly', plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True)
+xvar_list_feed = [xvar for xvar in xvar_list if xvar.find('_feed')>-1]
+X_feedonly = XYarr.loc[:,xvar_list_feed]
+corr_mat_feed, _ = get_corrmat_corrlist(X_feedonly, sort_corrlist=True, csv_fname=csv_fname+'_feedonly',
+                                          savefig=savefig+'_feedonly', plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True)
 
 # %% get high correlation pairs / clusters
 
 # set correlation threshold
-corr_thres = 0.9
+corr_thres = 0.85
 
 # get pairs with high correlations
 corr_selected = get_high_correlation_pairs(

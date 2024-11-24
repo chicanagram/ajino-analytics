@@ -209,14 +209,23 @@ print("'", end='')
 print(*xvar_list_prefilt, sep="'\n'", end="'")
 print('\n')
 
+## X4: Average Nutrient Specific Rate of Change + process inputs
+MC_shortlist = ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr']
+xvar_list_prefilt = [f'{MC}_basal' for MC in MC_shortlist] + [f'{MC}_feed' for MC in MC_shortlist]+ process_inputs
+xvar_list_prefilt.remove('feed %')
+xvar_list_dict.update({5: xvar_list_prefilt})
+print('X5:', len(xvar_list_prefilt))
+print("'", end='')
+print(*xvar_list_prefilt, sep="'\n'", end="'")
+print('\n')
+
 
 #%% Get X and Y datasets 
 suffix = ''
 remove_cols_w_nan_thres = 0.07 # 0.1 #  0.25 # 
 
 for Y_featureset_idx in [0]:
-    for X_featureset_idx in [0]:
-    
+    for X_featureset_idx in [5]:
         print('X_featureset_idx:', X_featureset_idx, ';  Y_featureset_idx:', Y_featureset_idx)
         XY_fname = f'X{X_featureset_idx}Y{Y_featureset_idx}{suffix}'
         XYarr_dict, XY_df = get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=f'{XY_fname}.csv', pkl_fname=f'{XY_fname}.pkl', shuffle_data=True, remove_cols_w_nan_thres=remove_cols_w_nan_thres)

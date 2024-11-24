@@ -12,16 +12,17 @@ import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Lasso
+from xgboost import XGBRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error
 import matplotlib.pyplot as plt
 import seaborn as sns
+from variables import model_params, model_cmap
 from plot_utils import figure_folder, heatmap, convert_figidx_to_rowcolidx
-from variables import model_params
 
 data_folder = '../ajino-analytics-data/'
-
+print(model_cmap)
 #%% cross-validation testing
 
 def get_corr_coef(x, y, corr_to_get=['spearmanr', 'pearsonr']):
@@ -139,6 +140,10 @@ def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='ma
             n_estimators = model_dict['n_estimators']
             model = RandomForestRegressor(n_estimators=n_estimators, random_state=0)
             model_params.append(('n_estimators',n_estimators))
+        elif model_type=='xgb':
+            n_estimators = model_dict['n_estimators']
+            model = XGBRegressor(objective="reg:squarederror", n_estimators=n_estimators, random_state=0)
+            model_params.append(('n_estimators',n_estimators))
         model_dict.update({'model':model})
         
         # perform cross-validation
@@ -228,15 +233,16 @@ def split_data_to_trainval_test(X, n_splits=5, split_type='random'):
     return split_dict
             
 
-def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_name_wsuffix, featureset_suffix='', n_splits=10, scoring='mae', models_to_eval_list=['randomforest'], model_params=model_params, save_results=None, show_plots=True, print_progress=True):
+def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_name_wsuffix, featureset_suffix='', n_splits=10, scoring='mae', models_to_eval_list=['randomforest'], model_params=model_params, save_results=None, show_plots=True, print_progress=True, model_cmap=model_cmap):
 
+    print(model_cmap)
     # create train-val / test splits using KFold
     kf_dict = split_data_to_trainval_test(X, n_splits=n_splits, split_type='random')
     metrics_list = ['r2_train', 'r2_test', 'mae_norm_train', 'mae_norm_test', 'mae_train', 'mae_test']
     kfold_metrics = []
         
     # initialize dict for storing trained models
-    SURROGATE_MODELS = {}
+    SURROGATE_MODELS = {yvar:{model_type:None for model_type in models_to_eval_list} for yvar in yvar_list}
     features_selected_sorted_dict = {}
     ypred_train_bymodel = {model_type: np.zeros((len(Y), len(yvar_list))) for model_type in models_to_eval_list}
     ypred_test_bymodel = {model_type: np.zeros((len(Y), len(yvar_list))) for model_type in models_to_eval_list}
@@ -250,8 +256,8 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
         if print_progress:
             print('\n************************************************')
             print(f'Performing train/test evaluation on Fold {k}...')
-            print('************************************************') 
-        for model_type in models_to_eval_list:         
+            print('************************************************')     
+        for model_type in models_to_eval_list:     
             for i, yvar in enumerate(yvar_list): 
                 if print_progress:
                     print(f'Evaluating {model_type} <> {yvar}...')
@@ -277,8 +283,8 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
     if print_progress:
         print('\n********************************************************')
         print('Getting train performance and coefficients on full dataset')
-        print('**********************************************************')
-    for model_type in models_to_eval_list:     
+        print('**********************************************************') 
+    for model_type in models_to_eval_list:  
         for i, yvar in enumerate(yvar_list): 
             # get features selected
             if isinstance(xvar_selected, list):
@@ -291,7 +297,7 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
             model_dict = model_params[dataset_name_wsuffix][model_type][yvar][0]
             metrics_train, model = evaluate_model_on_train_test_data(X_selected, y, X_selected, y, model_dict, scoring=scoring)
             ypred_train_bymodel[model_type][:,i] = metrics_train['ypred_test']
-            SURROGATE_MODELS.update({yvar: model})
+            SURROGATE_MODELS[yvar][model_type] = model
         
             # get features
             coefs = get_feature_coefficients(model, model_type)
@@ -305,11 +311,57 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
                 plt.ylabel('Feature importance')
                 plt.title(f'{yvar}: {model_type} feature importances')
                 plt.show()
+                
+    # get ensemble results
+    if len(models_to_eval_list)>1:
+        ypred_train_bymodel['ENSEMBLE'] = np.zeros_like(ypred_train_bymodel[models_to_eval_list[0]])
+        ypred_test_bymodel['ENSEMBLE'] = np.zeros_like(ypred_test_bymodel[models_to_eval_list[0]])
+        for model_type in models_to_eval_list:  
+            ypred_train_bymodel['ENSEMBLE'] += ypred_train_bymodel[model_type]
+            ypred_test_bymodel['ENSEMBLE'] += ypred_test_bymodel[model_type]
+        # average predictions
+        ypred_train_bymodel['ENSEMBLE'] /= len(models_to_eval_list)
+        ypred_test_bymodel['ENSEMBLE'] /= len(models_to_eval_list)
+        # get kfold metrics
+        for k, (train_idx, test_idx) in kf_dict.items():
+            Y_train = Y[train_idx, :]    
+            Y_test = Y[test_idx, :]      
+            for i, yvar in enumerate(yvar_list):  
+                y_train = Y_train[:, i]
+                y_test = Y_test[:, i]
+                ypred_train_ensemble = ypred_train_bymodel['ENSEMBLE'][train_idx, i]
+                ypred_test_ensemble = ypred_test_bymodel['ENSEMBLE'][test_idx, i]
+                r2_train = round(r2_score(y_train, ypred_train_ensemble),2)
+                r2_test = round(r2_score(y_test, ypred_test_ensemble),2)
+                mae_train = round(mean_absolute_error(y_train, ypred_train_ensemble),2)
+                mae_test = round(mean_absolute_error(y_test, ypred_test_ensemble),2)
+                mae_norm_train = mae_train/np.mean(y_train)
+                mae_norm_test = mae_test/np.mean(y_test)
+                metrics = {
+                    'model_type': 'ENSEMBLE',
+                    'yvar': yvar,
+                    'param_name': None,
+                    'param_val': None ,
+                    'k': k,
+                    'r2_train':r2_train,
+                    'r2_test':r2_test,
+                    'mae_norm_train':mae_norm_train,
+                    'mae_norm_test':mae_norm_test,
+                    'mae_train':mae_train,
+                    'mae_test':mae_test,
+                    'xvar_sorted': None,
+                 }
+                kfold_metrics.append(metrics)
+        
+        
+        models_to_plot_list = models_to_eval_list + ['ENSEMBLE']
+    else: 
+        models_to_plot_list = models_to_eval_list
         
     # plot scatter predictions
     if show_plots:
         savefig = None # f'{figure_folder}modelpredictions_scatterplots_{dataset_name}{dataset_suffix}{featureset_suffix}.png'
-        plot_scatter_train_test_predictions(Y[:,:len(yvar_list)], ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_eval_list, savefig=savefig)
+        plot_scatter_train_test_predictions(Y[:,:len(yvar_list)], ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_plot_list, savefig=savefig, model_cmap=model_cmap)
     if print_progress:
         print('\n********************')
         print('PLOT OVERALL RESULTS')
@@ -321,7 +373,7 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
     
     # calculate average metrics
     kfold_metrics_avg = []
-    for model_type in models_to_eval_list:
+    for model_type in models_to_plot_list:
         for yvar in yvar_list:
             kfold_metrics_avg_dict = {'model_type':model_type, 'yvar':yvar}
             metrics_avg = kfold_metrics[(kfold_metrics.yvar==yvar) & (kfold_metrics.model_type==model_type)][metrics_list].rename(columns={c:f'{c}_avg' for c in metrics_list}).mean(axis=0).round(3).to_dict()
@@ -330,7 +382,7 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
             kfold_metrics_avg_dict.update(metrics_avg)
             kfold_metrics_avg.append(kfold_metrics_avg_dict)
         kfold_metrics_avg_cols = ['model_type', 'yvar'] + list(metrics_avg.keys()) + list(metrics_std.keys())
-        kfold_metrics_avg = pd.DataFrame(kfold_metrics_avg, columns=kfold_metrics_avg_cols)
+    kfold_metrics_avg = pd.DataFrame(kfold_metrics_avg, columns=kfold_metrics_avg_cols)
     if save_results is not None:
         kfold_metrics.to_csv(f'{data_folder}model_metrics_kfold_{dataset_name_wsuffix}{featureset_suffix}.csv')
         kfold_metrics_avg.to_csv(f'{data_folder}model_metrics_avg_kfold_{dataset_name_wsuffix}{featureset_suffix}.csv') # 
@@ -339,7 +391,7 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
     if show_plots:
         figtitle = f'Model evaluation metrics for {dataset_name_wsuffix}{featureset_suffix}, {n_splits}-fold CV'
         savefig = f'{figure_folder}modelmetrics_allselectedmodels_keyYvar_{dataset_name_wsuffix}{featureset_suffix}' if save_results else None
-        plot_model_metrics(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(7*len(yvar_list),15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True, annotate_vals=True)
+        plot_model_metrics(kfold_metrics_avg, models_to_plot_list, yvar_list, nrows=2, ncols=1, figsize=(7*len(yvar_list),15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True, annotate_vals=True, model_cmap=model_cmap)
         # plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=True, annotate_vals=True)
         
     return kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS
@@ -436,6 +488,11 @@ def evaluate_model_on_train_test_data(X_test, y_test, X_train, y_train, model_di
         param_name = 'n_estimators'
         param_val = model_dict[param_name]
         model = RandomForestRegressor(n_estimators=param_val, random_state=0)
+    elif model_type=='xgb':
+        from xgboost import XGBRegressor
+        param_name = 'n_estimators'
+        param_val = model_dict[param_name]
+        model = XGBRegressor(objective="reg:squarederror", n_estimators=param_val, random_state=0)
         
     # get train results
     model.fit(X_train_, y_train)
@@ -512,7 +569,7 @@ def get_order_of_element_sizes(arr, invert_importance_order=True):
 def get_feature_coefficients(model, model_type):
     if model_type in ['plsr', 'lasso']: 
         coefs = model.coef_.reshape(-1,)
-    elif model_type in ['randomforest']:
+    elif model_type in ['randomforest', 'xgb']:
         coefs = model.feature_importances_
     return coefs
 
@@ -611,7 +668,7 @@ def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_c
         return arr
 
 
-def plot_feature_importance_barplots_bymodel(feature_importance_df, yvar_list=None, xvar_list=None, model_list=None, order_by_feature_importance=False, label_xvar_by_indices=True, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, savefig=None, figtitle=None):
+def plot_feature_importance_barplots_bymodel(feature_importance_df, yvar_list=None, xvar_list=None, model_list=None, order_by_feature_importance=False, label_xvar_by_indices=True, model_cmap=model_cmap, savefig=None, figtitle=None):
 
     """
     Plot bar chart comparing overall feature importance for all x variables for across y variables
@@ -646,23 +703,43 @@ def plot_feature_importance_barplots_bymodel(feature_importance_df, yvar_list=No
                 xticklabels_ordered = [label if k%2==0 else '' for k, label in enumerate(xticklabels_ordered)]
                 
             if len(model_list)>1:
-                ax[i][j].bar(xtickpos, feature_importance_arr_yvar_ordered, color=model_cmap[model_type], width=width)
-                if order_by_feature_importance:
-                    for x, y, xticklabel in zip(xtickpos, feature_importance_arr_yvar_ordered, xticklabels_ordered):
-                        ax[i][j].annotate(xticklabel, (x-width*0.75,y*1.01), fontsize=7)
-                else:
-                    ax[i][j].set_xticks(xtickpos, xticklabels_ordered, fontsize=8)
-                ax[i][j].set_title(yvar, fontsize=20)
-                ax[i][j].set_ylabel('feature prominences', fontsize=16)
+                if len(yvar_list)>1:
+                    ax[i][j].bar(xtickpos, feature_importance_arr_yvar_ordered, color=model_cmap[model_type], width=width)
+                    if order_by_feature_importance:
+                        for x, y, xticklabel in zip(xtickpos, feature_importance_arr_yvar_ordered, xticklabels_ordered):
+                            ax[i][j].annotate(xticklabel, (x-width*0.75,y*1.01), fontsize=7)
+                    else:
+                        ax[i][j].set_xticks(xtickpos, xticklabels_ordered, fontsize=8)
+                    ax[i][j].set_title(yvar, fontsize=20)
+                    ax[i][j].set_ylabel('feature prominences', fontsize=16)
+                else: 
+                    ax[i].bar(xtickpos, feature_importance_arr_yvar_ordered, color=model_cmap[model_type], width=width)
+                    if order_by_feature_importance:
+                        for x, y, xticklabel in zip(xtickpos, feature_importance_arr_yvar_ordered, xticklabels_ordered):
+                            ax[i].annotate(xticklabel, (x-width*0.75,y*1.01), fontsize=7)
+                    else:
+                        ax[i].set_xticks(xtickpos, xticklabels_ordered, fontsize=8)
+                    ax[i].set_title(yvar, fontsize=20)
+                    ax[i].set_ylabel('feature prominences', fontsize=16)
             else: 
-                ax[j].bar(xtickpos, feature_importance_arr_yvar_ordered, color=model_cmap[model_type], width=width)
-                if order_by_feature_importance:
-                    for x, y, xticklabel in zip(xtickpos, feature_importance_arr_yvar_ordered, xticklabels_ordered):
-                        ax[j].annotate(xticklabel, (x-width*0.75,y*1.01), fontsize=7)
+                if len(yvar_list)>1:
+                    ax[j].bar(xtickpos, feature_importance_arr_yvar_ordered, color=model_cmap[model_type], width=width)
+                    if order_by_feature_importance:
+                        for x, y, xticklabel in zip(xtickpos, feature_importance_arr_yvar_ordered, xticklabels_ordered):
+                            ax[j].annotate(xticklabel, (x-width*0.75,y*1.01), fontsize=7)
+                    else:
+                        ax[j].set_xticks(xtickpos, xticklabels_ordered, fontsize=8)
+                    ax[j].set_title(yvar, fontsize=20)
+                    ax[j].set_ylabel('feature prominences', fontsize=16)
                 else:
-                    ax[j].set_xticks(xtickpos, xticklabels_ordered, fontsize=8)
-                ax[j].set_title(yvar, fontsize=20)
-                ax[j].set_ylabel('feature prominences', fontsize=16)
+                    ax.bar(xtickpos, feature_importance_arr_yvar_ordered, color=model_cmap[model_type], width=width)
+                    if order_by_feature_importance:
+                        for x, y, xticklabel in zip(xtickpos, feature_importance_arr_yvar_ordered, xticklabels_ordered):
+                            ax.annotate(xticklabel, (x-width*0.75,y*1.01), fontsize=7)
+                    else:
+                        ax.set_xticks(xtickpos, xticklabels_ordered, fontsize=8)
+                    ax.set_title(yvar, fontsize=20)
+                    ax.set_ylabel('feature prominences', fontsize=16)
         
     if figtitle is not None: 
         ymax = ax.flatten()[0].get_position().ymax
@@ -726,7 +803,7 @@ def order_features_by_importance(feature_scoring_agg_yvar, xvar_list):
 
 
 #%%
-def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
+def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))+1
     legenditems_count = 0
@@ -776,7 +853,7 @@ def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2
     plt.show()
     
 
-def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
+def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))+1
     legenditems_count = 0
@@ -819,7 +896,7 @@ def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrow
     plt.show()
 
 
-def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'],  model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, annotate_vals=False):
+def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'],  model_cmap=model_cmap, annotate_vals=False):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))*2+1
     for i, yvar in enumerate(yvar_list):
@@ -864,7 +941,7 @@ def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list
     plt.show()
     
     
-def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_eval_list, model_cmap={'randomforest':'r', 'plsr':'b', 'lasso':'g'}, savefig=None):
+def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymodel, yvar_list, models_to_eval_list, model_cmap=model_cmap, savefig=None):
 
     # iterate through yvar in sublist
     fig, ax = plt.subplots(len(models_to_eval_list),len(yvar_list), figsize=(6.75*len(yvar_list),6*len(models_to_eval_list)))

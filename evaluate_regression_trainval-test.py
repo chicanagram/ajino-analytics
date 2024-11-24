@@ -7,7 +7,7 @@ Created on Wed Jul 24 21:02:36 2024
 """
 import numpy as np
 import pandas as pd
-from variables import model_params, yvar_list_key, features_selected_dict
+from variables import model_params, yvar_list_key
 from model_utils import split_data_to_trainval_test, eval_model_over_params, plot_model_param_results, evaluate_model_on_train_test_data, get_feature_importances, plot_feature_importance_barplots_bymodel, get_feature_coefficients, order_features_by_coefficient_importance, plot_model_metrics, plot_model_metrics_cv, plot_scatter_train_test_predictions, order_list_by_frequencies, plot_feature_importance_heatmap
 from plot_utils import figure_folder
 from get_datasets import data_folder, get_XYdata_for_featureset
@@ -120,11 +120,11 @@ if optimize_model_params:
     
 else: 
     model_params_to_eval = None
-    models_to_eval_list = ['randomforest', 'plsr', 'lasso'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
+    models_to_eval_list = ['xgb', 'randomforest'] # ['randomforest', 'plsr', 'lasso'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
     model_params_opt = model_params.copy()
     
-if optimize_feature_subset is None:  
-    featureset_bymodeltype = features_selected_dict.copy()
+# if optimize_feature_subset is None:  
+#     featureset_bymodeltype = features_selected_dict.copy()
     
     
     

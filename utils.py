@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 from plot_utils import heatmap, annotate_heatmap
 import seaborn as sns
 from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key, xvar_list_dict_prefilt
-from get_datasets import get_XYdata_for_featureset
 
 
 def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_list_dict, csv_fname=None, pkl_fname=None, data_folder=data_folder, shuffle_data=True, remove_cols_w_nan_thres=0.1):
@@ -144,12 +143,10 @@ def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx, use_abs_vals=T
     return corr_mat
 
 
-def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, plot_corrmat=True, plot_clustermap=False, use_abs_vals=True):
+def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, plot_corrmat=True, plot_clustermap=False, use_abs_vals=True, annotate_corrmap=False):
     
     # calculate correlation matrix
     corr_mat = df.corr(numeric_only=True)
-    if use_abs_vals:
-        corr_mat = corr_mat.abs()
     cols = corr_mat.columns.tolist()
     rows = list(corr_mat.index)
     n = len(cols)
@@ -171,6 +168,11 @@ def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, p
     corr_mat = corr_mat.loc[rows_nonan, cols_nonan]
     cols = cols_nonan
     rows = rows_nonan
+    
+    corr_mat_init = corr_mat.to_numpy()
+    # get absolute values
+    if use_abs_vals: 
+        corr_mat = corr_mat.abs()
 
     # save correlation matrix as csv
     if csv_fname is not None:
@@ -208,6 +210,11 @@ def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, p
         else:
             heatmap(corr_mat.to_numpy(), ax=ax, datamin=-1, datamax=1,
                     logscale_cmap=False, annotate=None, row_labels=rows, col_labels=cols)
+        if annotate_corrmap: 
+            for i in range(corr_mat.shape[0]):
+                for j in range(corr_mat.shape[1]):
+                    txt = str(round(corr_mat_init[i,j],2))
+                    ax.text(j-0.25,i+0.1, txt, fontsize=7)
         ax.grid(None)
         if savefig is not None:
             fig.savefig(f'{savefig}.png', bbox_inches='tight')

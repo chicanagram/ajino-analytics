@@ -11,11 +11,7 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from variables import data_folder, figure_folder
-
-
-
-model_cmap = {'randomforest':'r', 'plsr':'b', 'lasso':'g'}
+from variables import data_folder, figure_folder, model_cmap
 
 
 def convert_figidx_to_rowcolidx(figidx, ncols): 
