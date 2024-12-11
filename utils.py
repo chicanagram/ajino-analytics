@@ -36,6 +36,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
     print(f'After removing columns with >{remove_cols_w_nan_thres*100}% of NaN data, dataframe shape:', XY_df.shape)
     
     # remove rows with nan data
+    nan_df = XY_df.isna()
     XY_df = XY_df.dropna()
     print('After removing rows with NaN data, dataframe shape:', XY_df.shape)
     
@@ -93,7 +94,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
         with open(f'{data_folder}{pkl_fname}', 'wb') as f:
             pickle.dump(XYarr_dict, f)
           
-    return XYarr_dict, XY_df
+    return XYarr_dict, XY_df, nan_df
 
 
 def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix='', data_folder=data_folder):
@@ -143,7 +144,7 @@ def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx, use_abs_vals=T
     return corr_mat
 
 
-def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, plot_corrmat=True, plot_clustermap=False, use_abs_vals=True, annotate_corrmap=False):
+def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, plot_corrmat=True, plot_clustermap=False, use_abs_vals=True, annotate_corrmap=False, labeltop=False):
     
     # calculate correlation matrix
     corr_mat = df.corr(numeric_only=True)
@@ -206,10 +207,10 @@ def get_corrmat_corrlist(df, sort_corrlist=True, csv_fname=None, savefig=None, p
         fig, ax = plt.subplots(1, 1, figsize=(n/20*8, n/20*8))
         if use_abs_vals:
             heatmap(corr_mat.to_numpy(), ax=ax, datamin=0, datamax=1,
-                    logscale_cmap=False, annotate=None, row_labels=rows, col_labels=cols)
+                    logscale_cmap=False, annotate=None, row_labels=rows, col_labels=cols, labeltop=labeltop)
         else:
             heatmap(corr_mat.to_numpy(), ax=ax, datamin=-1, datamax=1,
-                    logscale_cmap=False, annotate=None, row_labels=rows, col_labels=cols)
+                    logscale_cmap=False, annotate=None, row_labels=rows, col_labels=cols, labeltop=labeltop)
         if annotate_corrmap: 
             for i in range(corr_mat.shape[0]):
                 for j in range(corr_mat.shape[1]):

@@ -9,7 +9,7 @@ Created on Sat Nov  9 10:49:46 2024
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from variables import data_folder, yvar_list_key, feature_selections, model_params, model_cmap
+from variables import data_folder, yvar_list_key, feature_selections, model_params, model_cmap, process_features
 from model_utils import run_trainval_test, plot_model_metrics_all
 from utils import sort_list, get_XYdata_for_featureset
 from plot_utils import convert_figidx_to_rowcolidx
@@ -191,7 +191,7 @@ class OptimizeCQAs:
 X_featureset_idx, Y_featureset_idx = 1,0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 dataset_suffix = ''
-featureset_suffix = '_model-opt'
+featureset_suffix = '_curated' # '_model-opt'
 dataset_name_wsuffix = dataset_name + dataset_suffix
 Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
 
@@ -203,7 +203,7 @@ features_selected_dict = feature_selections[featureset_suffix]
 for yvar in [yvar_list_key[3]]: 
     print(yvar)
     features_selected_yvar = features_selected_dict[yvar].copy()
-    kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS = run_trainval_test(X, Y, yvar_list=[yvar], xvar_selected={yvar:features_selected_yvar}, xvar_list_all=xvar_list_all, dataset_name_wsuffix=dataset_name_wsuffix, featureset_suffix=featureset_suffix)
+    kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel = run_trainval_test(X, Y, yvar_list=[yvar], xvar_selected={yvar:features_selected_yvar}, xvar_list_all=xvar_list_all, dataset_name_wsuffix=dataset_name_wsuffix, featureset_suffix=featureset_suffix)
     feature_drop_test_res.append({'yvar':yvar, 'feature_dropped':None, 'features_selected': features_selected_yvar, 'r2_test_avg': kfold_metrics_avg.iloc[0]['r2_test_avg']})
     for k, feature in enumerate(features_selected_yvar): 
         features_selected_yvar_MOD = features_selected_dict[yvar].copy()
@@ -217,37 +217,12 @@ for yvar in [yvar_list_key[3]]:
 feature_drop_test_res = pd.DataFrame(feature_drop_test_res)
 print(feature_drop_test_res)
 
-#%% RUN MODEL WITH SINGLE FEATURE SET
-
-# get data
-X_featureset_idx, Y_featureset_idx = 1,0
-dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-dataset_suffix = ''
-featureset_suffix = '_curated' # '_knowledge-opt' #'_model-opt'
-dataset_name_wsuffix = dataset_name + dataset_suffix
-Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
-models_to_eval_list = ['randomforest', 'xgb']
-
-yvar_list = yvar_list_key # ['Titer (mg/L)_14']# 
-features_selected_dict = feature_selections[featureset_suffix]
-
-# get results WITHOUT feature selection
-kfold_metrics_orig, kfold_metrics_avg_orig, SURROGATE_MODELS_orig = run_trainval_test(X, Y, yvar_list, xvar_list_all, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
-
-# get results WITH feature selection
-kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS = run_trainval_test(X, Y, yvar_list, features_selected_dict, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
-
-# combine results
-model_metrics_df_dict = {0: kfold_metrics_avg_orig, 1: kfold_metrics_avg}
-plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list+['ENSEMBLE'], yvar_list, suffix_list=['_train_avg', '_test_avg'], annotate_vals=True)
-
-
 #%% DEFINE OPTIMIZATION INPUTS
 
-starting_point_list = ['best3'] # ['avg-Basal-D-Feed-a'] # ['best1', 'best2', 'best3'] # 
+starting_point_list = ['best3'] # ['best1', 'best2', 'best3'] # ['best3'] # 
 minimizer_list = ['annealing_minimize'] # ['forest_minimize'] # ['gp_minimize', 'forest_minimize']
 wts = [3,1,0,0.2, 0.2] # titer_wt, man5_wt, fuc_wt, gal_wt
-n_calls = 1000
+n_calls = 1500
 n_iter = 1
 cap_DO_lbnd = False
 
@@ -295,6 +270,45 @@ starting_point_params_to_fix = {
     # 'feed vol': 0.2335
     }
 
+
+#%% GET SURROGATE MODEL WITH CHOSEN FEATURE SET
+
+# get data
+X_featureset_idx, Y_featureset_idx = 1,0
+dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
+dataset_suffix = ''
+featureset_suffix =  '_curated2' # '_combi2' # '_compactness-opt'
+dataset_name_wsuffix = dataset_name + dataset_suffix
+Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
+models_to_eval_list = ['randomforest', 'xgb']
+
+yvar_list = yvar_list_key # ['Titer (mg/L)_14']# 
+features_selected_dict = feature_selections[featureset_suffix]
+
+# set feature indices to optimize
+features_selected_all_ = []
+for yvar, features_selected_yvar in features_selected_dict.items():
+    features_selected_yvar_ = [feature for feature in features_selected_yvar if feature not in starting_point_params_to_fix]
+    features_selected_all_ += features_selected_yvar_
+features_selected_all = sort_list(list(set(features_selected_all_))) # sort and deduplicate list
+features_opt = features_selected_all.copy()
+idxs_opt = np.array([xvar_list_all.index(xvar) for xvar in features_opt])
+print('features_opt:', features_opt)
+print('idxs_opt:', idxs_opt)
+
+
+# get results WITHOUT feature selection
+kfold_metrics_orig, kfold_metrics_avg_orig, SURROGATE_MODELS_orig, ypred_train_bymodel_orig, ypred_test_bymodel_orig = run_trainval_test(X, Y, yvar_list, xvar_list_all, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
+
+# get results WITH feature selection
+kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel = run_trainval_test(X, Y, yvar_list, features_selected_dict, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
+
+# combine results
+model_metrics_df_dict = {0: kfold_metrics_avg_orig, 1: kfold_metrics_avg}
+plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list+['ENSEMBLE'], yvar_list, suffix_list=['_train_avg', '_test_avg'], annotate_vals=True)
+
+
+
 #%% 
 for starting_point in starting_point_list: 
     for minimizer in minimizer_list:
@@ -308,17 +322,6 @@ for starting_point in starting_point_list:
             features_selected = features_selected_dict[yvar]
             features_selected_idxs_dict[yvar] = [xvar_list_all.index(xvar) for xvar in features_selected]
         print('features_selected_idxs_dict:', features_selected_idxs_dict)
-        
-        # set feature indices to optimize
-        features_selected_all_ = []
-        for yvar, features_selected_yvar in features_selected_dict.items():
-            features_selected_yvar_ = [feature for feature in features_selected_yvar if feature not in starting_point_params_to_fix]
-            features_selected_all_ += features_selected_yvar_
-        features_selected_all = sort_list(list(set(features_selected_all_))) # sort and deduplicate list
-        features_opt = features_selected_all.copy()
-        idxs_opt = np.array([xvar_list_all.index(xvar) for xvar in features_opt])
-        print('features_opt:', features_opt)
-        print('idxs_opt:', idxs_opt)
         
         # get bounds for optimization of each feature
         bounds = []
@@ -342,7 +345,7 @@ for starting_point in starting_point_list:
         
         for n in range(n_iter):
             csv_suffix = '_' + minimizer.split('_')[0] + f'_{starting_point}_{n}'
-            csv_fpath = f'{data_folder}optimizeCQAs_wts={"-".join(str(x) for x in wts)}_ncalls={n_calls}{csv_suffix}.csv'
+            csv_fpath = f'{data_folder}optimizeCQAs_fs={featureset_suffix[1:]}_wts={"-".join(str(x) for x in wts)}_ncalls={n_calls}{csv_suffix}.csv'
             OptCQA = OptimizeCQAs(x0, res0, features_selected_idxs_dict, features_opt, idxs_opt, bounds, XMEAN, XSTD, SURROGATE_MODELS, 
                                   titer_wt=wts[0], man5_wt=wts[1], fuc_wt=wts[2], gal_wt=wts[3], 
                                   n_calls=n_calls, optimizer_random_state=n, csv_fpath=csv_fpath)
@@ -366,58 +369,104 @@ for starting_point in starting_point_list:
             plt.ylabel('mannosylation_14')
             plt.title(f'{minimizer}: wts={", ".join(str(x) for x in wts)}, {starting_point}, iter{n}')
             plt.show()
+            
     
+#%% get best conditions
 
-#%% plot boxplots of average nutrient values
+# get full experimental data
+exp_data_all = pd.read_csv(f'{data_folder}X0Y0.csv', index_col=0)
+exp_data = exp_data_all[(exp_data_all['Basal medium']=='Basal-A') & (exp_data_all['Feed medium']=='Feed-a')]
+exp_data['exp_or_sim'] = 'exp'
+x0 = starting_point_dict['avg-Basal-A-Feed-a']['x0'].to_dict()
 
-# # get original data
-exp_data = pd.read_csv(f'{data_folder}X0Y0.csv', index_col=0)
+sim_results = {
+    '_curated2': {'csv_flist': [
+        'optimizeCQAs_fs=curated2_wts=3-1-0-0.2-0.2_ncalls=1500_annealing_best3_0.csv'
+        ],
+        'T_thres':(8800,8800), 'M_thres':(12,8.5)},
+    '_combi1': {'csv_flist': [
+        'optimizeCQAs_fs=combi1_wts=3-1-0-0.2-0.2_ncalls=1500_annealing_best3_0.csv',
+        'optimizeCQAs_fs=combi1_wts=3-2-0-0.2-0.2_ncalls=1500_annealing_best3_0.csv',
+        'optimizeCQAs_fs=combi1_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best2_0.csv',
+        'optimizeCQAs_fs=combi1_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best3_0.csv',
+        'optimizeCQAs_fs=combi1_wts=3-1-0-0.2-0.2_ncalls=1500_annealing_best1_0.csv'
+        ],
+        'T_thres':(8800,8800), 'M_thres':(12,8.5)},
+    '_combi2': {'csv_flist': [
+        'optimizeCQAs_fs=combi2_wts=3-1-0-0.2-0.2_ncalls=1500_annealing_best1_0.csv',
+        'optimizeCQAs_fs=combi2_wts=3-1-0-0.2-0.2_ncalls=1500_annealing_best3_0.csv',
+        ],
+        'T_thres':(8800,8800), 'M_thres':(12,8.5)},
+    }
 
-# get simulation data
-# csv_flist = [
-#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best3_0.csv',
-#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best3_0_7-20-8.csv',
-#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best2_7-20-6.csv',
-#     'optimizeCQAs_wts=3-1-0-0.2-0.2_ncalls=1000_annealing_best1_7.1-60-8.csv'
-#     ]
-# csv = pd.read_csv(csv_fpath, index_col=0)
+featureset_suffix = '_curated2' # '_combi1'
+csv_fdict = sim_results[featureset_suffix]
+titer_thres = csv_fdict['T_thres']
+man5_thres = csv_fdict['M_thres']
 
-simulation_data = OptCQA.csv
-plt.scatter(simulation_data['Titer (mg/L)_14'], simulation_data['mannosylation_14'], color='orange', s=6, alpha=0.5)
+for i, csv_fname in enumerate(csv_fdict['csv_flist']):
+    sim = pd.read_csv(data_folder+csv_fname, index_col=0).drop_duplicates(subset=['obj_fn']+yvar_list_key)
+    if i==0:
+        sim_all = sim.copy()
+    else:
+        sim_all = pd.concat([sim_all, sim])
+sim_all = sim_all.drop_duplicates(subset=['obj_fn']+yvar_list_key)
+sim_all['titer_over_man5'] = sim_all['Titer (mg/L)_14']/sim_all['mannosylation_14']
+sim_all.to_csv(data_folder + f'optimizeCQAs_fs={featureset_suffix[1:]}_all.csv')
+features_opt = [f for f in sim_all if f in xvar_list_all]
+print(features_opt)
+sim_all['exp_or_sim'] = 'sim'
+
+# get best conditions
+sim_opt = sim_all[(sim_all['Titer (mg/L)_14']>titer_thres[1]) & (sim_all['mannosylation_14']<man5_thres[1])].sort_values(by='titer_over_man5', ascending=False)
+print(sim_opt[yvar_list_key + features_opt + ['titer_over_man5']])
+print(sim_opt.iloc[0][yvar_list_key+features_opt])
+
+# get scatter plot
+plt.scatter(sim_all['Titer (mg/L)_14'], sim_all['mannosylation_14'], color='orange', s=6, alpha=0.5)
+plt.scatter(sim_opt['Titer (mg/L)_14'], sim_opt['mannosylation_14'], color='r', s=6, alpha=0.2)
 plt.scatter(exp_data['Titer (mg/L)_14'], exp_data['mannosylation_14'], color='b', s=6, alpha=0.5)
 plt.legend(['In-silico exploration', 'Experimental data'])
 plt.xlabel('Titer (mg/L)_14')
 plt.ylabel('mannosylation_14')
-plt.title(f'{minimizer}: wts={", ".join(str(x) for x in wts)}, {starting_point}, iter{n}')
+plt.title(f'Simulation & experiment data using {featureset_suffix[1:]} featureset')
 plt.show()
-#%% 
-# initialize df for storing all results
-df_all_cols = ['exp_or_sim']+xvar_list_all+yvar_list_key
-df_all = pd.DataFrame(columns=df_all_cols)
-exp_data['exp_or_sim'] = 'exp'
-df_all = pd.concat([df_all, exp_data[df_all_cols]], ignore_index=True)
+    
+# get violin plots for selected optimized samples
+df_all = pd.concat([exp_data[['exp_or_sim']+ yvar_list_key + features_opt], sim_all[['exp_or_sim'] + yvar_list_key + features_opt]], ignore_index=True)
 
-# add simulation data
-simulation_starting_point = 'best3'
-x0 = starting_point_dict[simulation_starting_point]['x0'].to_dict()
-simulation_data['exp_or_sim'] = 'sim'
-for col, val in x0.items():
-    if col not in simulation_data:
-        simulation_data[col] = val
-
-df_all = pd.concat([df_all, simulation_data[df_all_cols]], ignore_index=True)
-
-#%%
 # filter by selected conditions
-df_exp_filt = df_all[(df_all['exp_or_sim']=='exp') & (df_all['Titer (mg/L)_14']>9000) & (df_all['mannosylation_14']<12)]
-df_sim_filt = df_all[(df_all['exp_or_sim']=='sim') & (df_all['Titer (mg/L)_14']>10000) & (df_all['mannosylation_14']<9)]
+df_exp_filt = df_all[(df_all['exp_or_sim']=='exp') & (df_all['Titer (mg/L)_14']>titer_thres[0]) & (df_all['mannosylation_14']<man5_thres[0])] 
+df_sim_filt = df_all[(df_all['exp_or_sim']=='sim') & (df_all['Titer (mg/L)_14']>titer_thres[1]) & (df_all['mannosylation_14']<man5_thres[1])] 
 df_all_filt = pd.concat([df_exp_filt, df_sim_filt], ignore_index=True)
+df_all_filt = df_all_filt.drop_duplicates()
 
 # get boxplots
-nrows, ncols = 5,6
-fig, ax = plt.subplots(nrows,ncols, figsize=(36,26))
-for i, feature in enumerate(features_opt):
+ncols = 6
+nrows = int(np.ceil(len(features_opt)/ncols))
+fig, ax = plt.subplots(nrows,ncols, figsize=(42,22))
+# nrows, ncols = 1,9
+# fig, ax = plt.subplots(nrows,ncols, figsize=(42,6))
+import seaborn as sns
+
+features_opt_sorted = sort_list([f for f in features_opt if f not in process_features]) + process_features
+unused_ax_idxs = [i for i in range(nrows*ncols) if i>=len(features_opt_sorted)]
+for i, feature in enumerate(features_opt_sorted):
     row_idx, col_idx = convert_figidx_to_rowcolidx(i, ncols)
-    df_all_filt.boxplot(feature, by='exp_or_sim', ax=ax[row_idx,col_idx])
-fig.suptitle('Boxplot of feature conditions', y=0.93, fontsize=16)
+    if nrows>1: 
+        ax_feature = ax[row_idx,col_idx]
+    else: 
+        ax_feature = ax[col_idx]
+    # df_all_filt.boxplot(feature, by='exp_or_sim', ax=ax[row_idx,col_idx])
+    sns.violinplot(x='exp_or_sim', y=feature, data=df_all_filt, ax=ax_feature)
+    ax_feature.yaxis.grid(False)
+    ax_feature.set_xlabel('exp_or_sim', fontsize=16)
+    ax_feature.set_ylabel(feature, fontsize=16)    
+for i in unused_ax_idxs:
+    row_idx, col_idx = convert_figidx_to_rowcolidx(i, ncols)
+    if nrows>1:
+        ax[row_idx, col_idx].set_axis_off()
+    else:
+        ax[col_idx].set_axis_off()
+fig.suptitle('Violin plots of feature conditions', y=0.90, fontsize=20)
 plt.show()

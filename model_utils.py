@@ -22,7 +22,6 @@ from variables import model_params, model_cmap
 from plot_utils import figure_folder, heatmap, convert_figidx_to_rowcolidx
 
 data_folder = '../ajino-analytics-data/'
-print(model_cmap)
 #%% cross-validation testing
 
 def get_corr_coef(x, y, corr_to_get=['spearmanr', 'pearsonr']):
@@ -248,6 +247,8 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
     ypred_test_bymodel = {model_type: np.zeros((len(Y), len(yvar_list))) for model_type in models_to_eval_list}
     
     for k, (train_idx, test_idx) in kf_dict.items():
+        print('Fold:', k)
+        print(test_idx)
     
         # get split data
         X_trainval, Y_trainval = X[train_idx, :], Y[train_idx, :]
@@ -394,7 +395,7 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
         plot_model_metrics(kfold_metrics_avg, models_to_plot_list, yvar_list, nrows=2, ncols=1, figsize=(7*len(yvar_list),15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True, annotate_vals=True, model_cmap=model_cmap)
         # plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=True, annotate_vals=True)
         
-    return kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS
+    return kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel
 
 
 def eval_model_over_params(model_dict, yvar, X, y, modelparam_metrics_df_bymodelyvar, trained_model_cache, scoring='mae', scale_data=True):
@@ -633,7 +634,7 @@ def sort_list(lst):
     return lst
 
 
-def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, annotate=None, get_clustermap=False, figtitle=None, savefig=None, return_fig_handle=False):
+def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_cmap=False, scale_vals=False, annotate=None, get_clustermap=False, figtitle=None, savefig=None, return_fig_handle=False, datamin=None, datamax=None):
 
     # get array data from feature dataframe
     arr = heatmap_df.to_numpy()
@@ -649,7 +650,7 @@ def plot_feature_importance_heatmap(heatmap_df, xvar_list, yvar_list, logscale_c
         
     # plot heatmap 
     fig, ax = plt.subplots(1,1, figsize=(25, arr.shape[0]/arr.shape[1]*25))
-    _, _, ax = heatmap(arr, c='viridis', ax=ax, cbar_kw={}, cbarlabel="", annotate=annotate, row_labels=yvar_list, col_labels=xvar_list, logscale_cmap=logscale_cmap, show_gridlines=False)
+    _, _, ax = heatmap(arr, c='viridis', ax=ax, cbar_kw={}, cbarlabel="", annotate=annotate, row_labels=yvar_list, col_labels=xvar_list, logscale_cmap=logscale_cmap, show_gridlines=False, datamin=datamin, datamax=datamax)
     if figtitle is not None:
         ax.set_title(figtitle, fontsize=16)
     if savefig is not None:

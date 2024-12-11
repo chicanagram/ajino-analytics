@@ -764,10 +764,14 @@ xvar_list_dict_prefilt = {
         'pH',
         'feed vol'
     ],
-    5: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr']] +
-        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr']] +
+    5: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr', 'Met', ]] +
+        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr', 'Met', ]] +
+        ['DO', 'pH', 'feed vol'],
+    6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
+        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
         ['DO', 'pH', 'feed vol']
 }
+
 
 xvar_list_dict = {
     1: ['Arg_basal',
@@ -887,9 +891,13 @@ xvar_list_dict = {
         'pH',
         'feed vol'
     ],
-    5:  [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr']] +
-        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn']] +
+    5:  [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Met', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr']] +
+        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Met', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn']] +
+        ['DO', 'pH', 'feed vol'],
+    6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
+        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Glu', ]] +
         ['DO', 'pH', 'feed vol']
+        
 }
 
 # %% FEATURE SELECTIONS
@@ -917,13 +925,10 @@ feature_selections = {
     },
                         
     '_compactness-opt': {
-    # 'Titer (mg/L)_14': ['Nicotinamide_feed', 'Cyanocobalamin_basal', 'DO', 'pH', 'feed vol'], #
-    'Titer (mg/L)_14': ['Asp_feed', 'Asp_basal', 'DO', 'pH', 'feed vol'], #
+    'Titer (mg/L)_14': ['Asp_basal', 'Asp_feed', 'DO', 'pH', 'feed vol'], #
     'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
     'fucosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'feed vol', 'DO', 'pH'],
-    # 'galactosylation_14': ['Folic acid_basal', 'Thr_basal', 'Trp_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
-    'galactosylation_14': ['Riboflavin_basal', 'Thr_basal', 'Trp_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
-
+    'galactosylation_14': ['Riboflavin_basal', 'Thr_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
     },
     
     '_curated': {
@@ -932,34 +937,84 @@ feature_selections = {
     'fucosylation_14': xvar_list_dict[5],
     'galactosylation_14': xvar_list_dict[5],
     },
+    '_curated2': {
+    'Titer (mg/L)_14': xvar_list_dict[6],
+    'mannosylation_14': xvar_list_dict[6],
+    'fucosylation_14': xvar_list_dict[6],
+    'galactosylation_14': xvar_list_dict[6],
+    },
+    
+    '_combi1': {
+    'Titer (mg/L)_14': ['Asp_basal', 'Asp_feed', 'Asn_basal', 'Asn_feed', 'Mg_basal', 'Mg_feed', 'Ca_basal', 'Ca_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
+    'mannosylation_14': ['Asp_basal', 'Asp_feed', 'Asn_basal', 'Asn_feed', 'Mg_basal', 'Mg_feed', 'Ca_basal', 'Ca_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
+    'fucosylation_14': ['Asp_basal', 'Asp_feed', 'Asn_basal', 'Asn_feed', 'Mg_basal', 'Mg_feed', 'Ca_basal', 'Ca_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol'],
+    'galactosylation_14':['Asp_basal', 'Asp_feed', 'Asn_basal', 'Asn_feed', 'Mg_basal', 'Mg_feed', 'Ca_basal', 'Ca_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'DO', 'pH', 'feed vol']
+    },
+        
+    '_combi2': {
+    'Titer (mg/L)_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
+    'mannosylation_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
+    'fucosylation_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
+    'galactosylation_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol']
+    }
     }
 
 
 #%% DOMAIN KNOWLEDGE 
 
-features_to_boost_GLYCO = {
+# ChatGPT
+features_to_boost_GLYCO_1 = {
     'Asn':1, 'Gln':0.5, 'Ser':1, 'Thr':1, 'Met':0.5, 'Pro':0.5, 'Gly':0.5, 'Asp':0.5, 'Glu':0.5, 
     'Riboflavin':1, 'Pyridoxine':1, 'Folic acid':0.5, 'Biotin':0.5, 
     'Mn':1, 'Ca':0.5, 'Mg':0.5, 'Zn':0.5, 'Cu':0.5, 
     'Uridine':1, 'Adenosine ':0.5, 'Putrescine':0.5
     }
 
-features_to_boost_TITER = {
+# Kathy/Ian
+features_to_boost_GLYCO_2 = {
+    'Gln': 0.9, 'Uridine': 0.9, 'Mn': 0.875, 'Asn': 0.8, 'Fe': 0.8, 'Co': 0.8, 'Riboflavin': 0.75, 'Ca': 0.75, 'Zn': 0.75, 'Glu': 0.7, 
+    'Nicotinamide': 0.7, 'Mg': 0.7, 'Cu': 0.675, 'Asp': 0.65, 'Gly': 0.6, 'Orn': 0.6, 'Choline': 0.6, 'Na': 0.6, 'D-glucose': 0.6, 'Pyridoxal': 0.55, 
+    'Folic acid': 0.5, 'Ala': 0.4, 'Thr': 0.4, 'Thiamin': 0.4, 'Biotin': 0.4, 'Arg': 0.2
+    }
+
+features_to_boost_GLYCO = {
+    'Met': 0.25, 'Fe': 0.4, 'Ser': 0.5, 'Zn': 0.625, 'Orn': 0.3, 'Thr': 0.7, 'Folic acid': 0.5, 'Biotin': 0.45, 'Gln': 0.7, 'Pro': 0.25, 
+    'Pyridoxal': 0.275, 'Ca': 0.625, 'Putrescine': 0.25, 'D-glucose': 0.3, 'Asp': 0.575, 'Nicotinamide': 0.35, 'Mg': 0.6, 'Cu': 0.5875, 
+    'Thiamin': 0.2, 'Mn': 0.9375, 'Riboflavin': 0.875, 'Ala': 0.2, 'Asn': 0.9, 'Adenosine ': 0.25, 'Uridine': 0.95, 'Glu': 0.6, 'Gly': 0.55, 
+    'Arg': 0.1, 'Choline': 0.3, 'Co': 0.4, 'Na': 0.3, 'Pyridoxine': 0.5
+    }
+
+# ChatGPT
+features_to_boost_TITER_1 = {
     'Gln': 1, 'Tyr': 1, 'Met': 1, 'Arg': 1, 'Asn': 1, 'Pro': 1, 'His': 0.5, 'Ser': 0.5, 'Lys': 0.5, 
     'Thiamin': 1, 'Riboflavin': 1, 'Patothenic  acid': 1, 'Pyridoxine': 1, 'Biotin': 1, 'Folic acid': 1, 'Cyanocobalamin': 1, 
     'Fe': 1, 'Zn': 1, 'Cu': 1, 'Mg': 1, 'Ca': 0.5, 'Mn': 0.5, 'Co': 0.5, 'Ni': 0.5, 
     'Adenosine': 1, 'Uridine': 1, 'Putrescine': 0.5, 'Ethanolomine': 0.5
     }
 
+# Kathy/Ian
+features_to_boost_TITER_2 = {
+    'Tyr': 1.0, 'Asp': 0.8, 'Arg': 0.7, 'Asn': 0.7, 'Glu': 0.7, 'Ser': 0.7, 'His': 0.65, 'Thr': 0.6, 'Pyridoxine': 0.6, 'Zn': 0.6, 'Leu': 0.5, 
+    'Lys': 0.5, 'Met': 0.5, 'Phe': 0.5, 'Trp': 0.5, 'Val': 0.5, 'Folic acid': 0.5, 'Na': 0.4, 'Mg': 0.4, 'P': 0.4, 'K': 0.4, 'Ca': 0.4
+    }
+
+
+features_to_boost_TITER = {
+    'K': 0.2, 'Met': 0.75, 'Fe': 0.5, 'Ser': 0.6, 'Zn': 0.8, 'Trp': 0.25, 'Thr': 0.3, 'His': 0.575, 'Adenosine': 0.5, 'Biotin': 0.5, 
+    'Folic acid': 0.75, 'Gln': 0.5, 'Pro': 0.5, 'Ca': 0.45, 'Putrescine': 0.25, 'Patothenic  acid': 0.5, 'Asp': 0.4, 'Mg': 0.7, 'Cu': 0.5, 
+    'Thiamin': 0.5, 'Mn': 0.25, 'Riboflavin': 0.5, 'Phe': 0.25, 'Asn': 0.85, 'Cyanocobalamin': 0.5, 'Uridine': 0.5, 'Tyr': 1.0, 'Glu': 0.35, 
+    'Arg': 0.85, 'Lys': 0.5, 'Leu': 0.25, 'Val': 0.25, 'Co': 0.25, 'Na': 0.2, 'Ni': 0.25, 'Pyridoxine': 0.8, 'Ethanolomine': 0.25, 'P': 0.2
+    }
+
 features_to_boost_dict = {
-    'Titer (mg/L)_14': features_to_boost_TITER,
+    'Titer (mg/L)_14': features_to_boost_TITER_2,
     'mannosylation_14': features_to_boost_GLYCO, 
     'fucosylation_14': features_to_boost_GLYCO, 
     'galactosylation_14': features_to_boost_GLYCO, 
     }
 
-# %% MODEL PARAMETERS
 
+#%% 
 model_params = {
     'X1Y0': {
         'randomforest': {
@@ -1032,5 +1087,31 @@ model_params = {
             'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
             'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
         },
-    }
+    },
+    'X6Y0': {
+        'randomforest': {
+            'Titer (mg/L)_14': [{'model_type': 'randomforest', 'n_estimators': 300}],
+            'mannosylation_14': [{'model_type': 'randomforest', 'n_estimators': 300}],
+            'fucosylation_14': [{'model_type': 'randomforest', 'n_estimators': 300}],
+            'galactosylation_14': [{'model_type': 'randomforest', 'n_estimators': 300}],
+        },
+        'plsr': {
+            'Titer (mg/L)_14': [{'model_type': 'plsr', 'n_components': 10}],
+            'mannosylation_14': [{'model_type': 'plsr', 'n_components': 9}],
+            'fucosylation_14': [{'model_type': 'plsr', 'n_components': 8}],
+            'galactosylation_14': [{'model_type': 'plsr', 'n_components': 8}],
+        },
+        'lasso': {
+            'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+            'mannosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+            'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+            'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.05}],
+        },
+        'xgb': {
+            'Titer (mg/L)_14': [{'model_type': 'xgb', 'n_estimators': 300}],
+            'mannosylation_14': [{'model_type': 'xgb', 'n_estimators': 300}],
+            'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 300}],
+            'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 300}],
+        },
+        }
     }

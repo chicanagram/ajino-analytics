@@ -127,7 +127,6 @@ else:
 #     featureset_bymodeltype = features_selected_dict.copy()
     
     
-    
 #%% Perform training & testing
 
 # get relevant dataset with chosen features

@@ -21,8 +21,8 @@ from get_datasets import data_folder, get_XYdata_for_featureset
 
 
 #%%
-featureset_list =  [(5,0)]
-models_to_eval_list = ['randomforest'] # ['lasso']# ['randomforest','plsr', 'lasso'] #  
+featureset_list =  [(6,0)]
+models_to_eval_list = ['xgb'] # ['lasso']# ['randomforest','plsr', 'lasso'] #  
 dataset_suffix = ''
 yvar_list = yvar_list_key
 f = 1
@@ -74,13 +74,16 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             shap_values = explainer(X_df)
             shap.plots.bar(shap_values.abs.mean(0), max_display=20)
             shap.plots.beeswarm(shap_values, max_display=20)
-            # clustering = shap.utils.hclust(X_df, y)
-            # shap.plots.bar(shap_values.abs.mean(0), clustering=clustering, clustering_cutoff=0.1)
+
+            # save SHAP values
+            shap_values_df = pd.DataFrame(shap_values.values, columns=xvar_list)
+            shap_values_df.to_csv(f'{data_folder}feature_analysis_SHAPvalues_{dataset_name}{dataset_suffix}_{model_type}_{i}.csv')
             
+            # save SHAP summary based on mean absolute shap values
             shap_summary.loc[idx, ['model_type', 'yvar']] = [model_type, yvar]
             shap_summary.loc[idx, xvar_list] = shap_values.abs.mean(0).values
             idx += 1
     
-    shap_summary.to_csv(f'{data_folder}feature_analysis_SHAP_{dataset_name}{dataset_suffix}_{model_type}.csv')
+    shap_summary.to_csv(f'{data_folder}feature_analysis_SHAPsummary_{dataset_name}{dataset_suffix}_{model_type}.csv')
     
     

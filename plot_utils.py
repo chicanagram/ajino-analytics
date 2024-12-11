@@ -155,7 +155,7 @@ def symlog(data):
     return data_symlog
     
     
-def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None, show_gridlines=True, labeltop=False):
+def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None, datamax=None, logscale_cmap=False, annotate=None, row_labels=None, col_labels=None, show_gridlines=True, labeltop=False, rotation=90, show_colorbar=True, fontsize=8):
     """
     Create a heatmap from a numpy array and two lists of labels.
 
@@ -228,15 +228,18 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
     im = ax.imshow(colormap, interpolation='nearest')
 
     # Create colorbar
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="3%", pad=0.07)
-    cbar = ax.figure.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)    
+    if show_colorbar:
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="3%", pad=0.07)
+        cbar = ax.figure.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)    
     
-    if logscale_cmap == True: 
-        cbar_labels = cbar.ax.get_yticks()
-        cbar.set_ticks(cbar_labels)
-        cbar_labels_unlog = list(np.round(np.exp(np.array(cbar_labels)),2))
-        cbar.set_ticklabels(cbar_labels_unlog)
+        if logscale_cmap == True: 
+            cbar_labels = cbar.ax.get_yticks()
+            cbar.set_ticks(cbar_labels)
+            cbar_labels_unlog = list(np.round(np.exp(np.array(cbar_labels)),2))
+            cbar.set_ticklabels(cbar_labels_unlog)
+    else:
+        cbar=None
         
     # Turn off gridlines if required
     ax.tick_params(axis='both', which='both', length=0, gridOn=show_gridlines) 
@@ -246,18 +249,18 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
     ax.set_yticks(np.arange(data.shape[0]))
     # ... and label them with the respective list entries.
     
-    ax.set_yticklabels(row_labels, fontsize=8)
+    ax.set_yticklabels(row_labels, fontsize=fontsize)
         
     # Let the horizontal axes labeling appear on top or bottom.
     if labeltop:
         ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False)
-        ax.set_xticklabels(col_labels, fontsize=8, ha="left")
+        ax.set_xticklabels(col_labels, fontsize=fontsize, ha="left")
     else:
         ax.tick_params(top=False, bottom=True, labeltop=False, labelbottom=True)
-        ax.set_xticklabels(col_labels, fontsize=8, ha="right")
+        ax.set_xticklabels(col_labels, fontsize=fontsize, ha="right")
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=90,
+    plt.setp(ax.get_xticklabels(), rotation=rotation,
              rotation_mode="anchor")
     
     # Annotate

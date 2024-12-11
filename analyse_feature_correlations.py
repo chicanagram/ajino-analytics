@@ -15,7 +15,6 @@ Created on Mon Jul 22 21:36:39 2024
 """
 import numpy as np
 import pandas as pd
-import pickle
 import matplotlib.pyplot as plt
 import scipy.spatial.distance as ssd
 from scipy.cluster import hierarchy
@@ -26,7 +25,7 @@ from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cq
 # %% get all XY feature correlations
 
 # get data from specific dataset
-X_featureset_idx, Y_featureset_idx = 5, 0
+X_featureset_idx, Y_featureset_idx = 1, 0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 # dataset_suffix = '_avg'
 dataset_suffix = ''
@@ -48,17 +47,34 @@ else:
 
 # get correlation matrix for ALL MC + process + Y features
 corr_mat, corr_all = get_corrmat_corrlist(XYarr, sort_corrlist=True, csv_fname=csv_fname,
-                                          savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=True)
+                                          savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=False)
+
+#%% get correlations for for X features only 
+corr_thres=0.7
+
+corr_mat_X, corr_all_X = get_corrmat_corrlist(X_df, sort_corrlist=True, csv_fname=None,
+                                          savefig=None, plot_corrmat=True, plot_clustermap=False, use_abs_vals=False)
+print('Mean abs X corr:', round(corr_all_X['corr_abs'].mean(),2))
+print('Median abs X corr:', round(corr_all_X['corr_abs'].median(),2))
+print(f'Frac of feature pairs with corr > {corr_thres}:', round(len(corr_all_X[corr_all_X['corr_abs']>corr_thres])/len(corr_all_X),2))
 
 # get correlation matrix for MC Basal and MC Feed features separately
 xvar_list_basal = [xvar for xvar in xvar_list if xvar.find('_basal')>-1]
-X_basalonly = XYarr.loc[:,xvar_list_basal]
-corr_mat_basal, _ = get_corrmat_corrlist(X_basalonly, sort_corrlist=True, csv_fname=csv_fname+'_basalonly',
-                                          savefig=savefig+'_basalonly', plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True)
+X_basalonly = X_df.loc[:,xvar_list_basal]
+corr_mat_basal, corr_all_basal = get_corrmat_corrlist(X_basalonly, sort_corrlist=True, csv_fname=csv_fname+'_basalonly',
+                                          savefig=savefig+'_basalonly', plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True, labeltop=True)
+print('Mean abs basal X corr:', round(corr_all_basal['corr_abs'].mean(),2))
+print('Median abs basal X corr:', round(corr_all_basal['corr_abs'].median(),2))
+print(f'Frac of feature pairs with corr > {corr_thres}:', round(len(corr_all_basal[corr_all_basal['corr_abs']>corr_thres])/len(corr_all_basal),2))
+
 xvar_list_feed = [xvar for xvar in xvar_list if xvar.find('_feed')>-1]
-X_feedonly = XYarr.loc[:,xvar_list_feed]
-corr_mat_feed, _ = get_corrmat_corrlist(X_feedonly, sort_corrlist=True, csv_fname=csv_fname+'_feedonly',
+X_feedonly = X_df.loc[:,xvar_list_feed]
+corr_mat_feed, corr_all_feed = get_corrmat_corrlist(X_feedonly, sort_corrlist=True, csv_fname=csv_fname+'_feedonly',
                                           savefig=savefig+'_feedonly', plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True)
+print('Mean abs feed X corr:', round(corr_all_feed['corr_abs'].mean(),2))
+print('Median abs feed X corr:', round(corr_all_feed['corr_abs'].median(),2))
+print(f'Frac of feature pairs with corr > {corr_thres}:', round(len(corr_all_feed[corr_all_feed['corr_abs']>corr_thres])/len(corr_all_feed),2))
+
 
 # %% get high correlation pairs / clusters
 
@@ -73,6 +89,9 @@ print()
 # for each variable, print list of other variables with which it has high correlation
 highcorr_vars_dict = get_dict_of_features_with_highcorr(
     corr_mat, corr_thres=corr_thres)
+
+#%% 
+
 
 # %% get clusters of high correlation features using scipy hierarchical clustering
 thres_to_visualize = 0.1

@@ -40,8 +40,10 @@ for exp_idx, d_exp in d.items():
     
     # iterate through nutrients
     for nutrient in nutrient_inputs:
+        
         if (nutrient not in d_exp) or ('y_imputed' not in d_exp[nutrient]):
             pass
+        
         else: 
             if nutrient not in nutrients_calculated_list:
                 nutrients_calculated_list.append(nutrient)
@@ -99,13 +101,15 @@ NSRC_df_merged[NSRC_df_merged.isnull()] = np.nan
 for col in NSRC_df_merged:
     NSRC_df_merged[col] = pd.to_numeric(NSRC_df_merged[col], errors='coerce')
     
-NSRC_df_merged = NSRC_df_merged[[c for c in var_dict_all['media_components'] if c in NSRC_df_merged]]
+# NSRC_df_merged = NSRC_df_merged[[c for c in var_dict_all['media_components'] if c in NSRC_df_merged]]
 NSRC_df_merged.to_csv(f'{data_folder}NSRC.csv')
 
 csv_fname = f'{data_folder}NSRC_correlation_matrix'
 savefig = f'{figure_folder}NSRC_correlations'
 NSRC_corr_mat, NSRC_corr_all = get_corrmat_corrlist(NSRC_df_merged, sort_corrlist=True, csv_fname=csv_fname,
                                           savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=True, annotate_corrmap=True)
+
+NSRC_df_merged = pd.read_csv(f'{data_folder}NSRC.csv', index_col=0)
 
 #%% plot NSRC values for all nutrients for all samples
 
