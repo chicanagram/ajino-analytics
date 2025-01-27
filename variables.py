@@ -321,7 +321,6 @@ nutrients_list_all = [
     'Putrescine',
     'Uridine',
     'D-glucose',
-    'Glucose (g/L)'
 ]
 
 nutrients_calculated_list = [
@@ -767,9 +766,231 @@ xvar_list_dict_prefilt = {
     5: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr', 'Met', ]] +
         [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr', 'Met', ]] +
         ['DO', 'pH', 'feed vol'],
-    6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
-        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
-        ['DO', 'pH', 'feed vol']
+    # 6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
+    #     [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
+    #     ['DO', 'pH', 'feed vol'],
+    6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Choline', 'Met', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Lys', 'Glu', ]] +
+        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Choline', 'Met', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Lys', 'Glu', ]] +
+        ['DO', 'pH', 'feed vol'],
+        
+    # D7 Nutrient Sampling + D7 VCD + Process Params
+    7: [
+        'VCD (E6 cells/mL)_7'
+        'Glucose (g/L)_7'
+        'Ala_7'
+        'Arg_7'
+        'Asn_7'
+        'Asp_7'
+        'Gln_7'
+        'Glu_7'
+        'Gly_7'
+        'Gly-Tyr_7'
+        'His_7'
+        'HyPro_7'
+        'Ile_7'
+        'Leu_7'
+        'Lys_7'
+        'Met_7'
+        'Orn_7'
+        'Phe_7'
+        'Pro_7'
+        'Ser_7'
+        'Tau_7'
+        'Thr_7'
+        'Trp_7'
+        'Tyr_7'
+        'Val_7'
+        'Choline_7'
+        'Thiamin_7'
+        'Pyridoxal_7'
+        'Pyridoxine_7'
+        'Nicotinamide_7'
+        'Pantothenic  acid_7'
+        'Folic acid_7'
+        'Cyanocobalamin_7'
+        'Riboflavin_7'
+        'Biotin_7'
+        'Na_7'
+        'Mg_7'
+        'P_7'
+        'K_7'
+        'Ca_7'
+        'Fe_7'
+        'Co_7'
+        'Cu_7'
+        'Zn_7'
+        'Mn_7'
+        'Ethanolamine_7'
+        'Putrescine_7'
+        'Uridine_7'
+        'Adenosine_7'
+        'DO'
+        'pH'
+        'feed vol'
+        ],
+    
+    # D11 Nutrient Sampling + D11 VCD + Process Params
+    8: [
+        'VCD (E6 cells/mL)_11'
+        'Glucose (g/L)_11'
+        'Ala_11'
+        'Arg_11'
+        'Asn_11'
+        'Asp_11'
+        'Gln_11'
+        'Glu_11'
+        'Gly_11'
+        'Gly-Tyr_11'
+        'His_11'
+        'HyPro_11'
+        'Ile_11'
+        'Leu_11'
+        'Lys_11'
+        'Met_11'
+        'Orn_11'
+        'Phe_11'
+        'Pro_11'
+        'Ser_11'
+        'Tau_11'
+        'Thr_11'
+        'Trp_11'
+        'Tyr_11'
+        'Val_11'
+        'Choline_11'
+        'Thiamin_11'
+        'Pyridoxal_11'
+        'Pyridoxine_11'
+        'Nicotinamide_11'
+        'Pantothenic  acid_11'
+        'Folic acid_11'
+        'Cyanocobalamin_11'
+        'Riboflavin_11'
+        'Biotin_11'
+        'Na_11'
+        'Mg_11'
+        'P_11'
+        'K_11'
+        'Ca_11'
+        'Fe_11'
+        'Co_11'
+        'Cu_11'
+        'Zn_11'
+        'Mn_11'
+        'Ethanolamine_11'
+        'Putrescine_11'
+        'Uridine_11'
+        'Adenosine_11'
+        'DO'
+        'pH'
+        'feed vol'
+        ],
+    
+    # D7+D11 Nutrient Sampling + D7+D11 VCD + Process Params
+    9: [
+        'VCD (E6 cells/mL)_7'
+        'VCD (E6 cells/mL)_11'
+        'Glucose (g/L)_7'
+        'Glucose (g/L)_11'
+        'Ala_7'
+        'Ala_11'
+        'Arg_7'
+        'Arg_11'
+        'Asn_7'
+        'Asn_11'
+        'Asp_7'
+        'Asp_11'
+        'Gln_7'
+        'Gln_11'
+        'Glu_7'
+        'Glu_11'
+        'Gly_7'
+        'Gly_11'
+        'Gly-Tyr_7'
+        'Gly-Tyr_11'
+        'His_7'
+        'His_11'
+        'HyPro_7'
+        'HyPro_11'
+        'Ile_7'
+        'Ile_11'
+        'Leu_7'
+        'Leu_11'
+        'Lys_7'
+        'Lys_11'
+        'Met_7'
+        'Met_11'
+        'Orn_7'
+        'Orn_11'
+        'Phe_7'
+        'Phe_11'
+        'Pro_7'
+        'Pro_11'
+        'Ser_7'
+        'Ser_11'
+        'Tau_7'
+        'Tau_11'
+        'Thr_7'
+        'Thr_11'
+        'Trp_7'
+        'Trp_11'
+        'Tyr_7'
+        'Tyr_11'
+        'Val_7'
+        'Val_11'
+        'Choline_7'
+        'Choline_11'
+        'Thiamin_7'
+        'Thiamin_11'
+        'Pyridoxal_7'
+        'Pyridoxal_11'
+        'Pyridoxine_7'
+        'Pyridoxine_11'
+        'Nicotinamide_7'
+        'Nicotinamide_11'
+        'Pantothenic  acid_7'
+        'Pantothenic  acid_11'
+        'Folic acid_7'
+        'Folic acid_11'
+        'Cyanocobalamin_7'
+        'Cyanocobalamin_11'
+        'Riboflavin_7'
+        'Riboflavin_11'
+        'Biotin_7'
+        'Biotin_11'
+        'Na_7'
+        'Na_11'
+        'Mg_7'
+        'Mg_11'
+        'P_7'
+        'P_11'
+        'K_7'
+        'K_11'
+        'Ca_7'
+        'Ca_11'
+        'Fe_7'
+        'Fe_11'
+        'Co_7'
+        'Co_11'
+        'Cu_7'
+        'Cu_11'
+        'Zn_7'
+        'Zn_11'
+        'Mn_7'
+        'Mn_11'
+        'Ethanolamine_7'
+        'Ethanolamine_11'
+        'Putrescine_7'
+        'Putrescine_11'
+        'Uridine_7'
+        'Uridine_11'
+        'Adenosine_7'
+        'Adenosine_11'
+        'DO'
+        'pH'
+        'feed vol'
+        ],
+
+
 }
 
 
@@ -894,9 +1115,206 @@ xvar_list_dict = {
     5:  [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Met', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn', 'Tyr']] +
         [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Met', 'Folic acid', 'Co', 'Ca', 'Pyridoxine', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Zn']] +
         ['DO', 'pH', 'feed vol'],
-    6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
-        [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Glu', ]] +
-        ['DO', 'pH', 'feed vol']
+    # 6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Tyr', 'Glu', ]] +
+    #     [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Fe', 'Mn', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Glu', ]] +
+    #     ['DO', 'pH', 'feed vol'],
+     6: [f'{MC}_basal' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Choline', 'Met', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Lys', 'Glu', ]] +
+         [f'{MC}_feed' for MC in ['Arg', 'Asn', 'Asp', 'Folic acid', 'Co', 'Choline', 'Met', 'Mg', 'Ca', 'Zn', 'Ser', 'Thr', 'Pro', 'Uridine', 'Riboflavin', 'Lys', 'Glu', ]] +
+         ['DO', 'pH', 'feed vol'],
+                
+    7: [
+        'VCD (E6 cells/mL)_7'
+        'Glucose (g/L)_7'
+        'Ala_7'
+        'Arg_7'
+        'Asn_7'
+        'Asp_7'
+        'Gln_7'
+        'Glu_7'
+        'Gly_7'
+        'Gly-Tyr_7'
+        'His_7'
+        'HyPro_7'
+        'Ile_7'
+        'Leu_7'
+        'Lys_7'
+        'Met_7'
+        'Orn_7'
+        'Phe_7'
+        'Pro_7'
+        'Ser_7'
+        'Tau_7'
+        'Thr_7'
+        'Trp_7'
+        'Tyr_7'
+        'Val_7'
+        'Choline_7'
+        'Pyridoxal_7'
+        'Pyridoxine_7'
+        'Nicotinamide_7'
+        'Pantothenic  acid_7'
+        'Folic acid_7'
+        'Cyanocobalamin_7'
+        'Riboflavin_7'
+        'Biotin_7'
+        'Na_7'
+        'Mg_7'
+        'P_7'
+        'K_7'
+        'Ca_7'
+        'Fe_7'
+        'Co_7'
+        'Cu_7'
+        'Zn_7'
+        'Mn_7'
+        'DO'
+        'pH'
+        'feed vol'
+        ], 
+    
+    8: [
+        'VCD (E6 cells/mL)_11'
+        'Glucose (g/L)_11'
+        'Ala_11'
+        'Arg_11'
+        'Asn_11'
+        'Asp_11'
+        'Gln_11'
+        'Glu_11'
+        'Gly_11'
+        'Gly-Tyr_11'
+        'His_11'
+        'HyPro_11'
+        'Ile_11'
+        'Leu_11'
+        'Lys_11'
+        'Met_11'
+        'Orn_11'
+        'Phe_11'
+        'Pro_11'
+        'Ser_11'
+        'Tau_11'
+        'Thr_11'
+        'Trp_11'
+        'Tyr_11'
+        'Val_11'
+        'Choline_11'
+        'Pyridoxal_11'
+        'Pyridoxine_11'
+        'Nicotinamide_11'
+        'Pantothenic  acid_11'
+        'Folic acid_11'
+        'Cyanocobalamin_11'
+        'Riboflavin_11'
+        'Biotin_11'
+        'Na_11'
+        'Mg_11'
+        'P_11'
+        'K_11'
+        'Ca_11'
+        'Fe_11'
+        'Co_11'
+        'Cu_11'
+        'Zn_11'
+        'Mn_11'
+        'DO'
+        'pH'
+        'feed vol'
+        ],
+    
+    9: [
+        'VCD (E6 cells/mL)_7'
+        'VCD (E6 cells/mL)_11'
+        'Glucose (g/L)_7'
+        'Glucose (g/L)_11'
+        'Ala_7'
+        'Ala_11'
+        'Arg_7'
+        'Arg_11'
+        'Asn_7'
+        'Asn_11'
+        'Asp_7'
+        'Asp_11'
+        'Gln_7'
+        'Gln_11'
+        'Glu_7'
+        'Glu_11'
+        'Gly_7'
+        'Gly_11'
+        'Gly-Tyr_7'
+        'Gly-Tyr_11'
+        'His_7'
+        'His_11'
+        'HyPro_7'
+        'HyPro_11'
+        'Ile_7'
+        'Ile_11'
+        'Leu_7'
+        'Leu_11'
+        'Lys_7'
+        'Lys_11'
+        'Met_7'
+        'Met_11'
+        'Orn_7'
+        'Orn_11'
+        'Phe_7'
+        'Phe_11'
+        'Pro_7'
+        'Pro_11'
+        'Ser_7'
+        'Ser_11'
+        'Tau_7'
+        'Tau_11'
+        'Thr_7'
+        'Thr_11'
+        'Trp_7'
+        'Trp_11'
+        'Tyr_7'
+        'Tyr_11'
+        'Val_7'
+        'Val_11'
+        'Choline_7'
+        'Choline_11'
+        'Pyridoxal_7'
+        'Pyridoxal_11'
+        'Pyridoxine_7'
+        'Pyridoxine_11'
+        'Nicotinamide_7'
+        'Nicotinamide_11'
+        'Pantothenic  acid_7'
+        'Pantothenic  acid_11'
+        'Folic acid_7'
+        'Folic acid_11'
+        'Cyanocobalamin_7'
+        'Cyanocobalamin_11'
+        'Riboflavin_7'
+        'Riboflavin_11'
+        'Biotin_7'
+        'Biotin_11'
+        'Na_7'
+        'Na_11'
+        'Mg_7'
+        'Mg_11'
+        'P_7'
+        'P_11'
+        'K_7'
+        'K_11'
+        'Ca_7'
+        'Ca_11'
+        'Fe_7'
+        'Fe_11'
+        'Co_7'
+        'Co_11'
+        'Cu_7'
+        'Cu_11'
+        'Zn_7'
+        'Zn_11'
+        'Mn_7'
+        'Mn_11'
+        'DO'
+        'pH'
+        'feed vol'
+        ]
         
 }
 
@@ -1015,6 +1433,33 @@ features_to_boost_dict = {
 
 
 #%% 
+
+default_params = {
+    'randomforest': {
+        'Titer (mg/L)_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+        'mannosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+        'fucosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+        'galactosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
+    },
+    'plsr': {
+        'Titer (mg/L)_14': [{'model_type': 'plsr', 'n_components': 10}],
+        'mannosylation_14': [{'model_type': 'plsr', 'n_components': 9}],
+        'fucosylation_14': [{'model_type': 'plsr', 'n_components': 8}],
+        'galactosylation_14': [{'model_type': 'plsr', 'n_components': 8}],
+    },
+    'lasso': {
+        'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+        'mannosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+        'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+        'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.05}],
+    },
+    'xgb': {
+        'Titer (mg/L)_14': [{'model_type': 'xgb', 'n_estimators': 100}],
+        'mannosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
+        'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
+        'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
+    },    
+ }
 model_params = {
     'X1Y0': {
         'randomforest': {
@@ -1062,32 +1507,7 @@ model_params = {
             'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.01}],
         }
     },
-    'X5Y0': {
-        'randomforest': {
-            'Titer (mg/L)_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
-            'mannosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
-            'fucosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
-            'galactosylation_14': [{'model_type': 'randomforest', 'n_estimators': 100}],
-        },
-        'plsr': {
-            'Titer (mg/L)_14': [{'model_type': 'plsr', 'n_components': 10}],
-            'mannosylation_14': [{'model_type': 'plsr', 'n_components': 9}],
-            'fucosylation_14': [{'model_type': 'plsr', 'n_components': 8}],
-            'galactosylation_14': [{'model_type': 'plsr', 'n_components': 8}],
-        },
-        'lasso': {
-            'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
-            'mannosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
-            'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
-            'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.05}],
-        },
-        'xgb': {
-            'Titer (mg/L)_14': [{'model_type': 'xgb', 'n_estimators': 100}],
-            'mannosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
-            'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
-            'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
-        },
-    },
+    'X5Y0': default_params.copy(),
     'X6Y0': {
         'randomforest': {
             'Titer (mg/L)_14': [{'model_type': 'randomforest', 'n_estimators': 300}],
@@ -1113,5 +1533,14 @@ model_params = {
             'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 300}],
             'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 300}],
         },
-        }
-    }
+        },
+    
+   'X7Y0': default_params.copy(),
+   'X8Y0': default_params.copy(),
+   'X9Y0': default_params.copy(),
+   'X10Y0': default_params.copy(),
+   }
+   
+   
+   
+   

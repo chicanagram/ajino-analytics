@@ -98,7 +98,7 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
 #%% 
 
 # load data
-featureset_list = [(1,0)] # [(4,0)] # 
+featureset_list = [(6,0)] # [(4,0)] # 
 dataset_suffix = ''
 f = 1
 n_splits = 10
@@ -112,15 +112,15 @@ save_results = True
 print_testres_on_each_fold = True
 if optimize_model_params:
     model_params_to_eval = [
-        {'model_type': 'randomforest', 'params_to_eval': ('n_estimators', [20,40,60,80,100,120,140,160,180])},
-        {'model_type': 'plsr', 'params_to_eval': ('n_components',[2,3,4,5,6,7,8,9,10,11,12,14])},
+        # {'model_type': 'randomforest', 'params_to_eval': ('n_estimators', [20,40,60,80,100,120,140,160,180])},
+        # {'model_type': 'plsr', 'params_to_eval': ('n_components',[2,3,4,5,6,7,8,9,10,11,12,14])},
         {'model_type': 'lasso', 'max_iter':500000, 'params_to_eval': ('alpha', [0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 20, 50, 100])},
         ]
     models_to_eval_list = [model_dict['model_type'] for model_dict in model_params_to_eval]
     
 else: 
     model_params_to_eval = None
-    models_to_eval_list = ['xgb', 'randomforest'] # ['randomforest', 'plsr', 'lasso'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
+    models_to_eval_list = ['xgb', 'randomforest'] # ['xgb', 'randomforest'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
     model_params_opt = model_params.copy()
     
 # if optimize_feature_subset is None:  
@@ -136,6 +136,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     dataset_name_wsuffix = dataset_name + dataset_suffix
     Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
     print(f'X.shape={X.shape}')
+    print(xvar_list_all)
 
     # create train-val / test splits using KFold
     kf_dict = split_data_to_trainval_test(X, n_splits=n_splits, split_type='random')
@@ -265,6 +266,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     if 'lasso' in models_to_eval_list:
         for yvar in yvar_list: 
             print(f'lasso <> {yvar}')
+            print(len(order_list_by_frequencies(coef_lists_bymodelyvar['lasso'][yvar])))
             lst = order_list_by_frequencies(coef_lists_bymodelyvar['lasso'][yvar])
             print(*lst, sep=', ')
             coef_lists_bymodelyvar['lasso'][yvar] = lst

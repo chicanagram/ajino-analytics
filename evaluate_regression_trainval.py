@@ -10,7 +10,7 @@ import pandas as pd
 import pickle
 import matplotlib.pyplot as plt
 from variables import data_folder, model_params, dict_update, yvar_sublist_sets, sort_list, yvar_list_key, model_cmap
-from model_utils import fit_model_with_cv, get_feature_importances, plot_feature_importance_heatmap, plot_feature_importance_barplots, plot_feature_importance_barplots_bymodel, plot_model_metrics, plot_model_metrics_cv, select_subset_of_X, order_features_by_importance
+from model_utils import fit_model_with_cv, get_feature_importances, order_features_by_coefficient_importance, plot_feature_importance_heatmap, plot_feature_importance_barplots, plot_feature_importance_barplots_bymodel, plot_model_metrics, plot_model_metrics_cv, select_subset_of_X, order_features_by_importance
 from plot_utils import figure_folder, model_cmap, convert_figidx_to_rowcolidx
 from utils import get_XYdata_for_featureset
 
@@ -104,8 +104,8 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
 
 #%% Evaluate individual model at a time and get metrics, and feature coefficients / importances 
 
-featureset_list =  [(1,0)] # 
-models_to_eval_list = ['randomforest', 'xgb', 'plsr', 'lasso'] # ['randomforest']# 
+featureset_list =  [(8,0)] # 
+models_to_eval_list = ['randomforest', 'lasso'] # ['randomforest', 'xgb', 'plsr', 'lasso'] # ['randomforest']# 
 # dataset_suffix = '_avg'
 dataset_suffix = ''
 f = 1
@@ -141,6 +141,9 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             
             # get feature importance and split into COEF and ORDER dicts
             feature_coefs, feature_importances = get_feature_importances(model_list[0], yvar, xvar_list, plot_feature_importances=False)
+            xvar_list_sorted, coefs_sorted = order_features_by_coefficient_importance(feature_coefs, xvar_list, filter_out_zeros=True)
+            if model_type=='lasso':
+                print('xvar_list_sorted:', ', '.join(xvar_list_sorted))
             # update aggregating dicts
             feature_importance_df += feature_importances
             feature_coef_df += feature_coefs
@@ -155,6 +158,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     feature_coef_df_ABS = feature_coef_df.copy()
     feature_coef_df_ABS.iloc[:,2:] = np.abs(feature_coef_df_ABS.iloc[:,2:].to_numpy())
     plot_feature_importance_barplots_bymodel(feature_coef_df_ABS, yvar_list=yvar_list_key, xvar_list=xvar_list, model_list=models_to_eval_list, order_by_feature_importance=False, label_xvar_by_indices=True, model_cmap=model_cmap, savefig=f'feature_prominence_barplots_{dataset_name}{dataset_suffix}', figtitle=f'Feature prominences for all y variables')
+    
     
     # aggregate all model metrics and save CSV
     model_metrics_df = pd.DataFrame(model_metrics_df)

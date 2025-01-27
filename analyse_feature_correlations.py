@@ -25,7 +25,7 @@ from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cq
 # %% get all XY feature correlations
 
 # get data from specific dataset
-X_featureset_idx, Y_featureset_idx = 1, 0
+X_featureset_idx, Y_featureset_idx = 8, 0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 # dataset_suffix = '_avg'
 dataset_suffix = ''
@@ -89,8 +89,6 @@ print()
 # for each variable, print list of other variables with which it has high correlation
 highcorr_vars_dict = get_dict_of_features_with_highcorr(
     corr_mat, corr_thres=corr_thres)
-
-#%% 
 
 
 # %% get clusters of high correlation features using scipy hierarchical clustering

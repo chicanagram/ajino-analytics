@@ -44,7 +44,7 @@ for feature in xvar_list:
     feature_effects_summary[feature]['baseline'] = starting_point_dict['avg-Basal-A-Feed-a']['x0'][feature]
 
 # load SHAP RF & XGB effects
-plot_shap_corr = False
+plot_shap_corr = True
 shap_values_dict = {}
 shap_meanabs_dict = {}
 for model_type in ['randomforest', 'xgb']: 

@@ -22,7 +22,7 @@ from get_datasets import data_folder, get_XYdata_for_featureset
 
 #%%
 featureset_list =  [(6,0)]
-models_to_eval_list = ['xgb'] # ['lasso']# ['randomforest','plsr', 'lasso'] #  
+models_to_eval_list = ['randomforest', 'xgb'] # ['lasso']# ['randomforest','plsr', 'lasso'] #  
 dataset_suffix = ''
 yvar_list = yvar_list_key
 f = 1
@@ -72,7 +72,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 explainer = shap.LinearExplainer(model, X_df)
                 
             shap_values = explainer(X_df)
-            shap.plots.bar(shap_values.abs.mean(0), max_display=20)
+            # shap.plots.bar(shap_values.abs.mean(0), max_display=20)
             shap.plots.beeswarm(shap_values, max_display=20)
 
             # save SHAP values
