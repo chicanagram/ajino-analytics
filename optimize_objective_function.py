@@ -274,10 +274,10 @@ starting_point_params_to_fix = {
 #%% GET SURROGATE MODEL WITH CHOSEN FEATURE SET
 
 # get data
-X_featureset_idx, Y_featureset_idx = 6,0
+X_featureset_idx, Y_featureset_idx = 1,0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-dataset_suffix = ''
-featureset_suffix =  '_curated2' # '_combi2' # '_compactness-opt'
+dataset_suffix = '_norm_with_val'
+featureset_suffix =  '_ajinovalidation' # '_curated2' # '_combi2' # '_compactness-opt'
 dataset_name_wsuffix = dataset_name + dataset_suffix
 Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
 models_to_eval_list = ['randomforest', 'xgb']

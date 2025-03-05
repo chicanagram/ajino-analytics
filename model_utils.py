@@ -11,10 +11,8 @@ from scipy.stats import spearmanr, pearsonr
 import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import Lasso, Ridge
 from xgboost import XGBRegressor
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -130,6 +128,11 @@ def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='ma
             n_components =  min(model_dict['n_components'], X.shape[1])
             model = PLSRegression(n_components=n_components)
             model_params.append(('n_components',n_components))
+        elif model_type=='ridge':
+            max_iter = model_dict['max_iter']
+            alpha = model_dict['alpha']
+            model = Ridge(max_iter=max_iter, alpha=alpha)
+            model_params.append(('alpha',alpha))
         elif model_type=='lasso':
             max_iter = model_dict['max_iter']
             alpha = model_dict['alpha']
@@ -220,6 +223,41 @@ def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='ma
         plt.show()
     
     return model_list, metrics
+
+
+def get_classifier_scoring(y_pred, y_true, model_name=None, class_labels=[-1,0,1], plot_roc=False):
+    from sklearn.metrics import (
+        accuracy_score, f1_score, precision_score, recall_score, matthews_corrcoef,
+        roc_auc_score, roc_curve, auc
+    )
+    from sklearn.preprocessing import label_binarize
+    # Binarize labels for multi-class ROC-AUC calculation
+    n_classes = len(class_labels)
+    y_true_binarized = label_binarize(y_true, classes=class_labels)  # Convert to one-hot encoding
+    y_pred_binarized = label_binarize(y_pred, classes=class_labels)  # Convert predictions to one-hot
+    metrics = {
+        "Model": model_name,
+        "Accuracy": accuracy_score(y_true, y_pred),
+        "F1-score": f1_score(y_true, y_pred, average="macro"),  # Balanced across classes
+        "Precision": precision_score(y_true, y_pred, average="macro", zero_division=0),
+        "Recall": recall_score(y_true, y_pred, average="macro"),
+        "MCC": matthews_corrcoef(y_true, y_pred),  # Balanced metric for multi-class
+        "ROC-AUC": roc_auc_score(y_true_binarized, y_pred_binarized, average="macro")  # Multi-class ROC
+    }
+    # Plot ROC Curve for each class
+    if plot_roc:
+        plt.figure(figsize=(8, 6))
+        for i in range(n_classes):
+            fpr, tpr, _ = roc_curve(y_true_binarized[:, i], y_pred_binarized[:, i])
+            roc_auc = auc(fpr, tpr)
+            plt.plot(fpr, tpr, label=f'Class {class_labels[i]} (AUC = {roc_auc:.2f})')
+        plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line for random chance
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title(f"ROC Curves for {model_name}")
+        plt.legend()
+        plt.show()
+    return metrics
 
 
 def split_data_to_trainval_test(X, n_splits=5, split_type='random'):
@@ -463,8 +501,6 @@ def plot_model_param_results(modelparam_metrics_df, yvar_list_to_plot, dataset_n
 
 def evaluate_model_on_train_test_data(X_test, y_test, X_train, y_train, model_dict, scoring='mae', print_res=False): 
     
-    from model_utils import perform_mean_std_scaling, get_score, r2_score
-
     # initialize results dict
     metrics = {}
     
@@ -568,7 +604,7 @@ def get_order_of_element_sizes(arr, invert_importance_order=True):
     return el_orders
 
 def get_feature_coefficients(model, model_type):
-    if model_type in ['plsr', 'lasso']: 
+    if model_type in ['plsr', 'lasso', 'ridge']: 
         coefs = model.coef_.reshape(-1,)
     elif model_type in ['randomforest', 'xgb']:
         coefs = model.feature_importances_
@@ -949,6 +985,7 @@ def plot_scatter_train_test_predictions(Y, ypred_train_bymodel, ypred_test_bymod
     for i, yvar in enumerate(yvar_list): 
         y = Y[:,i]
         for j, model_type in enumerate(models_to_eval_list): 
+            print(model_type)
             c = model_cmap[model_type]
             ypred_train = ypred_train_bymodel[model_type][:,i]
             ypred_test = ypred_test_bymodel[model_type][:,i]

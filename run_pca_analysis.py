@@ -38,17 +38,33 @@ name_to_feature_mapping_dict = {
     #     'Fuc': 'fucosylation',
     #     'Gal': 'galactosylation',
     # },
-    'CQAs/CPPs': {
+    'CPPs/CQAs': {
         'VCD': 'VCD (E6 cells/mL)',
         'Via': 'Viability (%)',
         'Titer': 'Titer (mg/L)',
-        'Gluc': 'Glucose (g/L)',
-        'Lac': 'Lac (g/L)',
-        'NH4+': 'NH4+ (mM)',
-        'Osm': 'Osmolarity (mOsm/kg)',
-        'Man5': 'mannosylation',
         'Fuc': 'fucosylation',
         'Gal': 'galactosylation',
+        'Gluc_14': 'Glucose (g/L)',
+        'Lac_14': 'Lac (g/L)',
+        'NH4+_14': 'NH4+ (mM)',
+        'Osm_14': 'Osmolarity (mOsm/kg)',
+        'Man5_14': 'mannosylation',
+    },
+    'CQAs/metabolites': {
+        'VCD': 'VCD (E6 cells/mL)_14',
+        'Via': 'Viability (%)_14',
+        'Titer': 'Titer (mg/L)_14',
+        'Man5': 'mannosylation_14',
+        'Fuc': 'fucosylation_14',
+        'Gal': 'galactosylation_14',
+        'Gluc_7': 'Glucose (g/L)_7',
+        'Lac_7': 'Lac (g/L)_7',
+        'NH4+_7': 'NH4+ (mM)_7',
+        'Osm_7': 'Osmolarity (mOsm/kg)_7',
+        # 'Gluc_14': 'Glucose (g/L)_14',
+        # 'Lac_14': 'Lac (g/L)_14',
+        # 'NH4+_14': 'NH4+ (mM)_14',
+        # 'Osm_14': 'Osmolarity (mOsm/kg)_14',
     },
 }
 
@@ -58,8 +74,13 @@ key_var_mappings = {
     }
 
 for k, (pca_set_name, name_to_feature_mapping) in enumerate(name_to_feature_mapping_dict.items()):
-    var_to_pca = [v+'_14' for v in list(name_to_feature_mapping.values())]
-    varnames_to_pca_init = [v for v in list(name_to_feature_mapping.keys())]
+    if pca_set_name == 'CQAs/metabolites':
+        var_to_pca = list(name_to_feature_mapping.values())
+        varnames_to_pca_init = [v for v in list(name_to_feature_mapping.keys())]
+    else:
+        var_to_pca = [v+'_14' for v in list(name_to_feature_mapping.values())]
+        print(var_to_pca)
+        varnames_to_pca_init = [v for v in list(name_to_feature_mapping.keys())]
     # add features to eval if not in PCA list
     varnames_to_pca = varnames_to_pca_init.copy()
     for var in ['Titer', 'Man5']: 

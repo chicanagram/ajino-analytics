@@ -104,7 +104,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
 
 #%% Evaluate individual model at a time and get metrics, and feature coefficients / importances 
 
-featureset_list =  [(8,0)] # 
+featureset_list =  [(1,0)] # 
 models_to_eval_list = ['randomforest', 'lasso'] # ['randomforest', 'xgb', 'plsr', 'lasso'] # ['randomforest']# 
 # dataset_suffix = '_avg'
 dataset_suffix = ''

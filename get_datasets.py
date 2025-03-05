@@ -294,7 +294,7 @@ for Y_featureset_idx in [0]:
         for i, f in enumerate(XYarr_dict['xvar_list']):
             print(i, f)
 
-#%%
+#%% # get optimization starting points nad feature effects summary table
 
 # input params & dataset
 X_featureset_idx, Y_featureset_idx =  1, 0

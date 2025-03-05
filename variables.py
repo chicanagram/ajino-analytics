@@ -23,12 +23,13 @@ data_folder = '../ajino-analytics-data/'
 figure_folder = f'{data_folder}figures/'
 
 # colormap 
-model_cmap = {'randomforest': 'r', 'plsr': 'b', 'lasso': 'g', 'xgb':'purple', 'ENSEMBLE': 'k'}
+model_cmap = {'randomforest': 'r', 'plsr': 'b', 'lasso': 'g', 'xgb':'purple', 'ridge':'orange', 'ENSEMBLE': 'k'}
 
 sampling_rawdata_dict = {
     0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows': [2, 2, 2, 2, 2, None, 2, 1], 'usecols': ['B:CA', 'B:DR', 'B:BE', 'B:BE', 'B:AZ', None, 'B:AI', 'A:F'], 'cqa_startcol': [6, 6, 6, 6, 6, None, 2, 1], },
     1: {'fname': '240906_22DX05-12_media combination_AJI-Astar_v2.xlsx', 'skiprows': [2, 2, 2, 2, 2, 2, 2, 2], 'usecols': ['B:BH', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK', 'B:GM', 'B:J'], 'cqa_startcol': [8, 8, 8, 8, 8, 8, 2, 1], },
     2: {'fname': '240906_22DX05-12_process combination_AJI-Astar_v3.xlsx', 'skiprows': [2, 2, 2, 2, 2, 2, 2, 2], 'usecols': ['B:BF', 'B:FN', 'B:CA', 'B:CA', 'B:BT', 'B:AK', 'B:GM', 'B:D'], 'cqa_startcol': [8, 8, 8, 8, 8, 8, 2, 1], },
+    'val': '250212_22DX05-14_validation run_AJI-Astar_v2.csv'
 }
 
 media_rawdata_dict = {
@@ -1374,7 +1375,35 @@ feature_selections = {
     'mannosylation_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
     'fucosylation_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol'],
     'galactosylation_14': ['Arg_basal', 'Arg_feed', 'Folic acid_basal', 'Folic acid_feed',  'Co_basal', 'Co_feed', 'Zn_basal', 'Zn_feed',  'Thr_basal', 'Thr_feed', 'Pro_basal', 'Pro_feed', 'Uridine_basal', 'Uridine_feed', 'Riboflavin_basal', 'Riboflavin_feed', 'Tyr_basal', 'DO', 'pH', 'feed vol']
-    }
+    },
+    
+    '_ajinovalidation': {
+        'Titer (mg/L)_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Tyr', 'Arg', 'Asn', 'Asp', 'Fe', 'Uridine']] + ['DO', 'pH', 'feed vol'],
+        'mannosylation_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Thr', 'Pro', 'Tyr', 'Asn', 'Folic acid']] + ['DO', 'pH', 'feed vol'],
+        'fucosylation_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Thr', 'Pro', 'Tyr', 'Asn']] + ['DO', 'pH', 'feed vol'],
+        'galactosylation_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Riboflavin', 'Asn', 'Folic acid', 'Fe', 'Mg', 'Uridine']] + ['DO', 'pH', 'feed vol']
+
+        },
+    '_ajinovalidation_wRiboflavin': {
+        'Titer (mg/L)_14': [f for f in [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Tyr', 'Arg', 'Asn', 'Asp', 'Fe', 'Uridine']] if f in xvar_list_dict[1]] + ['DO', 'pH', 'feed vol'],
+        'mannosylation_14': [f for f in [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Thr', 'Pro', 'Tyr', 'Asn', 'Folic acid', 'Riboflavin']] if f in xvar_list_dict[1]] + ['DO', 'pH', 'feed vol'],
+        'fucosylation_14': [f for f in [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Thr', 'Pro', 'Tyr', 'Asn', 'Riboflavin']] if f in xvar_list_dict[1]] + ['DO', 'pH', 'feed vol'],
+        'galactosylation_14': [f for f in [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Riboflavin', 'Asn', 'Folic acid', 'Fe', 'Mg', 'Uridine']] if f in xvar_list_dict[1]] + ['DO', 'pH', 'feed vol']
+
+        },
+    '_ajinovalidation2': {
+        'Titer (mg/L)_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Riboflavin', 'Tyr', 'Arg', 'Asn', 'Asp', 'Fe', 'Mg', 'Folic acid', 'Uridine']] + ['DO', 'pH', 'feed vol'],
+        'mannosylation_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Tyr', 'Arg', 'Asn', 'Asp', 'Fe', 'Mg', 'Folic acid']] + ['DO', 'pH', 'feed vol'],
+        'fucosylation_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Tyr', 'Arg', 'Asn', 'Asp', 'Fe', 'Mg', 'Folic acid']] + ['DO', 'pH', 'feed vol'],
+        'galactosylation_14': [f'{nutrient}_{basal_or_feed}' for basal_or_feed in ['basal','feed'] for nutrient in ['Mn', 'Thr', 'Pro', 'Riboflavin', 'Tyr', 'Arg', 'Asn', 'Asp', 'Fe', 'Mg', 'Folic acid', 'Uridine']] + ['DO', 'pH', 'feed vol']
+        },
+    '_ajinovalidation3': {
+        'Titer (mg/L)_14': ['Mn_feed', 'Thr_feed', 'Pro_feed', 'Riboflavin_feed', 'Tyr_basal', 'Arg_basal', 'Asn_basal', 'Asp_basal', 'Fe_basal', 'Mg_basal', 'Mg_feed', 'Folic acid_basal', 'Folic acid_feed', 'Uridine_basal', 'Uridine_feed', 'DO', 'pH', 'feed vol'],
+        'mannosylation_14': ['Mn_feed', 'Thr_feed', 'Pro_feed', 'Tyr_basal', 'Arg_basal', 'Asn_basal', 'Asp_basal', 'Fe_basal', 'Mg_basal', 'Mg_feed', 'Folic acid_basal', 'Folic acid_feed', 'DO', 'pH', 'feed vol'],
+        'fucosylation_14': ['Mn_feed', 'Thr_feed', 'Pro_feed', 'Tyr_basal', 'Arg_basal', 'Asn_basal', 'Asp_basal', 'Fe_basal', 'Mg_basal', 'Mg_feed', 'Folic acid_basal', 'Folic acid_feed', 'DO', 'pH', 'feed vol'],
+        'galactosylation_14': ['Mn_feed', 'Thr_feed', 'Pro_feed', 'Riboflavin_feed', 'Tyr_basal', 'Arg_basal', 'Asn_basal', 'Asp_basal', 'Fe_basal', 'Mg_basal', 'Mg_feed', 'Folic acid_basal', 'Folic acid_feed', 'Uridine_basal', 'Uridine_feed', 'DO', 'pH', 'feed vol']
+        }
+
     }
 
 
@@ -1453,6 +1482,12 @@ default_params = {
         'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
         'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.05}],
     },
+    'ridge': {
+        'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 1}],
+        'mannosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 1}],
+        'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 1}],
+        'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 1}],
+    },
     'xgb': {
         'Titer (mg/L)_14': [{'model_type': 'xgb', 'n_estimators': 100}],
         'mannosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
@@ -1485,6 +1520,12 @@ model_params = {
             'mannosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
             'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
             'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
+        },
+        'ridge': {
+            'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+            'mannosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+            'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
+            'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.05}],
         },
     },
     'X4Y0': {
@@ -1539,6 +1580,12 @@ model_params = {
    'X8Y0': default_params.copy(),
    'X9Y0': default_params.copy(),
    'X10Y0': default_params.copy(),
+   'X1Y0_avgnorm': default_params.copy(),
+   'X1Y0_norm': default_params.copy(),
+   'X1Y0_norm_with_val': default_params.copy(),
+   'X1Y0_norm_with_val_unshuffled': default_params.copy(),
+   'X1Y0_norm_with_val-A': default_params.copy(),
+   'X1Y0_norm_with_val-B': default_params.copy(),
    }
    
    

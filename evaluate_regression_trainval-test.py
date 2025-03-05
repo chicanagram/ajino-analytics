@@ -21,8 +21,12 @@ def reformat_model_params_dict(model_params_opt):
 
     return model_params_opt
 
-def get_filtered_Xdata(X_trainval, X_test, featureset_suffix, featureset_bymodeltype):
-    xvar_list_ = featureset_bymodeltype[yvar][model_type][featureset_suffix]
+def get_filtered_Xdata(X_trainval, X_test, featureset_suffix, featureset_dict, xvar_list_all, yvar, model_type=None):
+    if model_type is None: 
+        xvar_list_ = featureset_dict[featureset_suffix][yvar]
+    else:
+        xvar_list_ = featureset_dict[yvar][model_type][featureset_suffix]
+    print(yvar, xvar_list_)
     xvar_idxs_selected = np.array([idx for idx, xvar in enumerate(xvar_list_all) if xvar in xvar_list_])
     X_trainval_ = X_trainval[:, xvar_idxs_selected]
     X_test_ = X_test[:, xvar_idxs_selected]
@@ -98,17 +102,17 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
 #%% 
 
 # load data
-featureset_list = [(6,0)] # [(4,0)] # 
-dataset_suffix = ''
+featureset_list = [(1,0)] # [(4,0)] # 
+dataset_suffix = '_norm_with_val-A' # '' # '_norm' # '' # '_avgnorm'
 f = 1
-n_splits = 10
+n_splits = 10 # 5 # 
 yvar_list = yvar_list_key.copy()
 # yvar_list = yvar_list_key.copy()[:2]
 scoring = 'mae'
 optimize_model_params = False
-optimize_feature_subset = False #'sfs-backward' # None # 
-featureset_suffix = '' # '_sfs-backward'
-save_results = True
+optimize_feature_subset = None # False #'sfs-backward' # None # 
+featureset_suffix =  '_ajinovalidation3' # '' #  # '_sfs-backward'
+save_results = False# True
 print_testres_on_each_fold = True
 if optimize_model_params:
     model_params_to_eval = [
@@ -135,6 +139,8 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
     dataset_name_wsuffix = dataset_name + dataset_suffix
     Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
+    
+    
     print(f'X.shape={X.shape}')
     print(xvar_list_all)
 
@@ -178,6 +184,7 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 featureset_suffix = '_rfe'    
                 res, featureset_bymodeltype = run_rfe(Y_trainval, X_trainval, yvar_list_key, xvar_list_all, models_to_eval_list, dataset_name, dataset_suffix, kfold_suffix=f'_k={k}', xvar_idx_end=None, featureset_suffix='_rfe')
                 
+        
         print('\n************************************************')
         print(f'Performing train/test evaluation on Fold {k}...')
         print('************************************************')
@@ -187,6 +194,14 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 print(f'Evaluating {model_type} <> {yvar}...')
                 X_trainval_ = X_trainval.copy()
                 X_test_ = X_test.copy()
+                
+                # SHUFFLE FEATURE VALUES
+                rng = np.random.default_rng()
+                # X_trainval_ = rng.permuted(X_trainval_, axis=0)
+                # X_test_ = rng.permuted(X_test_, axis=0)
+                # X_trainval_[:,-1] = rng.permuted(X_trainval_[:,-1], axis=0)
+                # X_test_[:,-1] = rng.permuted(X_test_[:,-1], axis=0)
+                
                 y_trainval = Y_trainval[:,i]
                 y_test = Y_test[:,i]
                 model_dict  = model_params_opt[dataset_name_wsuffix][model_type][yvar][0]
@@ -194,9 +209,11 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 
                 # get filtered X data
                 if featureset_suffix != '':
-                    xvar_list_, X_trainval_, X_test_  = get_filtered_Xdata(X_trainval_, X_test_, featureset_suffix, featureset_bymodeltype)
-
-                # get metrics from evaluating on train & test data
+                    if 'featureset_bymodeltype' in globals(): 
+                        xvar_list_, X_trainval_, X_test_  = get_filtered_Xdata(X_trainval_, X_test_, featureset_suffix, featureset_bymodeltype, xvar_list_all, yvar, model_type=model_type)
+                    else: 
+                        from variables import feature_selections as featureset_byyvar
+                        xvar_list_, X_trainval_, X_test_  = get_filtered_Xdata(X_trainval_, X_test_, featureset_suffix, featureset_byyvar, xvar_list_all, yvar, model_type=None)
                 metrics, model = evaluate_model_on_train_test_data(X_test_, y_test, X_trainval_, y_trainval, model_dict, scoring=scoring)
             
                 # get features
@@ -220,7 +237,11 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
             print(yvar)
             y = Y[:,i]
             if featureset_suffix != '':
-                xvar_list_, X_, X_  = get_filtered_Xdata(X.copy(), X.copy(), featureset_suffix, featureset_bymodeltype)
+                if 'featureset_bymodeltype' in globals(): 
+                    xvar_list_, X_, X_  = get_filtered_Xdata(X.copy(), X.copy(), featureset_suffix, featureset_bymodeltype, xvar_list_all, yvar, model_type=model_type)
+                else: 
+                    from variables import feature_selections as featureset_byyvar
+                    xvar_list_, X_, X_  = get_filtered_Xdata(X.copy(), X.copy(), featureset_suffix, featureset_byyvar, xvar_list_all, yvar, model_type=None)
             else: 
                 xvar_list_ = xvar_list_all.copy()
                 X_ = X.copy()

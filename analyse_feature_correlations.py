@@ -17,18 +17,52 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.spatial.distance as ssd
+from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 from utils import get_XYdataset, get_XYdata_for_featureset, get_xy_correlation_matrix, get_corrmat_corrlist, get_high_correlation_pairs, get_dict_of_features_with_highcorr, cluster_features_based_on_crosscorrelations
 from plot_utils import heatmap, annotate_heatmap
 from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key, xvar_list_dict_prefilt
 
+#%% plot selected correlations
+
+df = pd.read_csv(data_folder + 'X1Y0.csv', index_col=0).reset_index(drop=True)
+basal_medium_list = list(set(df['Basal medium'].tolist()))
+feed_medium_list = list(set(df['Feed medium'].tolist()))
+print(feed_medium_list)
+arr1 = np.zeros((len(feed_medium_list),))
+arr2 = np.zeros((len(feed_medium_list),))
+for i, feed in enumerate(feed_medium_list):
+    df_feed = df[df['Feed medium']==feed]
+    plt.scatter(df_feed['Pro_feed'], df_feed['Choline_feed'], alpha=0.5)
+    arr1[i] = round(df_feed['Pro_feed'].mean())
+    arr2[i] = round(df_feed['Choline_feed'].mean())
+spearman_corr = round(spearmanr(df['Pro_feed'], df['Choline_feed'])[0],3)
+plt.xlabel('Pro_feed')
+plt.ylabel('Choline_feed')
+plt.title(f'Choline_feed vs. Pro_feed (spearman corr={spearman_corr})')
+plt.legend(feed_medium_list)
+plt.show()
+
+print(arr1)
+print(arr2)
+
+arr2_shuffled = np.random.shuffle(arr2)
+for i, (x,y) in enumerate(zip(arr1,arr2)):
+    plt.scatter(x,y)
+spearman_corr = round(spearmanr(arr1, arr2)[0],3)
+plt.xlabel('Pro_feed')
+plt.ylabel('Choline_feed')
+plt.title(f'Choline_feed vs. Pro_feed (spearman corr={spearman_corr})')
+plt.legend(feed_medium_list)
+plt.show()
+
 # %% get all XY feature correlations
 
 # get data from specific dataset
-X_featureset_idx, Y_featureset_idx = 8, 0
+X_featureset_idx, Y_featureset_idx = 1, 0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 # dataset_suffix = '_avg'
-dataset_suffix = ''
+dataset_suffix = '' # '_norm_with_val'
 csv_fname = f'{data_folder}{dataset_name}{dataset_suffix}_correlation_matrix'
 savefig = f'{figure_folder}{dataset_name}{dataset_suffix}_correlations'
 use_all_data = False
@@ -47,7 +81,7 @@ else:
 
 # get correlation matrix for ALL MC + process + Y features
 corr_mat, corr_all = get_corrmat_corrlist(XYarr, sort_corrlist=True, csv_fname=csv_fname,
-                                          savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=False)
+                                          savefig=savefig, plot_corrmat=True, plot_clustermap=True, use_abs_vals=True)
 
 #%% get correlations for for X features only 
 corr_thres=0.7
