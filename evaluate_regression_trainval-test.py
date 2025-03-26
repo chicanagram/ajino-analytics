@@ -103,7 +103,7 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
 
 # load data
 featureset_list = [(1,0)] # [(4,0)] # 
-dataset_suffix = '_norm_with_val-A' # '' # '_norm' # '' # '_avgnorm'
+dataset_suffix = '_norm' # '_norm_with_val-A' # '' # '' # '_avgnorm'
 f = 1
 n_splits = 10 # 5 # 
 yvar_list = yvar_list_key.copy()
@@ -111,7 +111,7 @@ yvar_list = yvar_list_key.copy()
 scoring = 'mae'
 optimize_model_params = False
 optimize_feature_subset = None # False #'sfs-backward' # None # 
-featureset_suffix =  '_ajinovalidation3' # '' #  # '_sfs-backward'
+featureset_suffix =  '' # '_ajinovalidation3' #  # '_sfs-backward'
 save_results = False# True
 print_testres_on_each_fold = True
 if optimize_model_params:
@@ -124,7 +124,7 @@ if optimize_model_params:
     
 else: 
     model_params_to_eval = None
-    models_to_eval_list = ['xgb', 'randomforest'] # ['xgb', 'randomforest'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
+    models_to_eval_list = ['xgb', 'randomforest', 'plsr', 'lasso'] # ['xgb', 'randomforest'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
     model_params_opt = model_params.copy()
     
 # if optimize_feature_subset is None:  
@@ -281,7 +281,8 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
     figtitle = f'Model evaluation metrics for {dataset_name}{dataset_suffix}{featureset_suffix}, {n_splits}-fold CV'
     savefig = f'{figure_folder}modelmetrics_allselectedmodels_keyYvar_{dataset_name}{dataset_suffix}{featureset_suffix}' if save_results else None
     plot_model_metrics(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_train_avg','_test_avg'], plot_errors=True, annotate_vals=True)
-    plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=True, annotate_vals=True)
+    # plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=True, annotate_vals=True)
+    plot_model_metrics_cv(kfold_metrics_avg, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.7, figtitle=figtitle, savefig=savefig, suffix_list=['_test_avg'], plot_errors=False, annotate_vals=True)
     
     # print all lasso coefficients selected for each yvar
     if 'lasso' in models_to_eval_list:

@@ -24,7 +24,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
     yvar_list = yvar_list_dict[Y_featureset_idx]
     
     # get XY data - drop rows which contain any NA values      
-    xy_var_list = ['exp_label', 'Basal medium', 'Feed medium'] + [var for var in xvar_list_prefilt+yvar_list if var in d]
+    xy_var_list = ['exp_label', 'Basal medium', 'Feed medium', 'feed %'] + [var for var in xvar_list_prefilt+yvar_list if var in d]
     print(len(xy_var_list), xy_var_list)
     XY_df = d[xy_var_list]
     exp_label_list_init = XY_df.exp_label.tolist()
@@ -67,6 +67,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
     # get X & Y numpy arrays
     X = XY_df[xvar_list].to_numpy()
     Y = XY_df[yvar_list].to_numpy()
+    metadata = XY_df[['exp_label', 'Basal medium', 'Feed medium', 'feed %', 'pH', 'DO']]
     
     # randomize samples (shuffle datasets)
     if shuffle_data:
@@ -75,6 +76,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
         np.random.shuffle(shuffle_idx)
         X = X[shuffle_idx,:]
         Y = Y[shuffle_idx,:]
+        metadata = metadata.iloc[shuffle_idx, :]
     
     # scale X dataset
     Xscaled = scale(X)
@@ -82,7 +84,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
     
     # create dict of all datasets with various feature set combinations
     XYarr_dict = {
-        'Y':Y, 'X': X, 'Xscaled':Xscaled, 'yvar_list': yvar_list, 'xvar_list': xvar_list
+        'Y':Y, 'X': X, 'Xscaled':Xscaled, 'yvar_list': yvar_list, 'xvar_list': xvar_list, 'meta':metadata
     }
 
     # save csv dataframe
@@ -97,7 +99,7 @@ def get_XYdataset(d, X_featureset_idx, Y_featureset_idx, xvar_list_dict, yvar_li
     return XYarr_dict, XY_df, nan_df
 
 
-def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix='', data_folder=data_folder):
+def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix='', data_folder=data_folder, return_XYarr_dict=False):
     with open(f'{data_folder}X{X_featureset_idx}Y{Y_featureset_idx}{dataset_suffix}.pkl', 'rb') as f:
         XYarr_dict = pickle.load(f)
     Y = XYarr_dict['Y']       
@@ -105,7 +107,10 @@ def get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix
     Xscaled = XYarr_dict['Xscaled']
     yvar_list = XYarr_dict['yvar_list'] 
     xvar_list = XYarr_dict['xvar_list']
-    return Y, X, Xscaled, yvar_list, xvar_list
+    if return_XYarr_dict: 
+        return Y, X, Xscaled, yvar_list, xvar_list, XYarr_dict
+    else:   
+        return Y, X, Xscaled, yvar_list, xvar_list
 
 
 def get_xy_correlation_matrix(X_featureset_idx, Y_featureset_idx, use_abs_vals=True):

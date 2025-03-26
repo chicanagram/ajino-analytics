@@ -903,11 +903,12 @@ def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrow
             model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
             ## R2
             legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c)
-            if annotate_vals:
-                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
             legenditems_count += 1
             ## MAE_norm
             ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c)
+            if annotate_vals:
+                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
+                ax[1].annotate(round(model_metrics_df_filt['mae_norm'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]]+0.008))
             if plot_errors: 
                 ## R2
                 ax[0].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], yerr=model_metrics_df_filt['r2'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
@@ -933,7 +934,8 @@ def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrow
     plt.show()
 
 
-def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'],  model_cmap=model_cmap, annotate_vals=False):
+def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'],  model_cmap=model_cmap, annotate_vals=False, alpha_dict=None):
+    
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))*2+1
     for i, yvar in enumerate(yvar_list):
@@ -941,35 +943,43 @@ def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list
             model_metrics_df = model_metrics_df_dict[j]
             for k, model_type in enumerate(models_to_eval_list):
                 c = model_cmap[model_type]
-                w = barwidth / (len(models_to_eval_list)*2)
-                xtickoffset = -barwidth/2 + w/2 + k*w*2 
+                w = barwidth / (len(models_to_eval_list)*len(suffix_list))
+                xtickoffset = -barwidth/2 + w/2 + k*w*len(suffix_list)
                 model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
                 ## R2
-                ax[0].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
-                ax[0].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]], width=w, label=model_type, color=c)
-                if annotate_vals:
-                    ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+j+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]))
-                    ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[1]],2), (xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]]))
-                ## MAE_norm
-                ax[1].bar(xtickpos[i]+j+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
-                ax[1].bar(xtickpos[i]+j+xtickoffset+w, model_metrics_df_filt['mae_norm'+suffix_list[1]], width=w, label=model_type, color=c)
+                for l, suffix in enumerate(suffix_list):
+                    if suffix.find('train')>-1:
+                        alpha=0.5
+                    else: 
+                        alpha=1
+                    if alpha_dict is not None: 
+                        alpha = alpha_dict[j]
+                    if alpha==0.5: 
+                        hatch='/'
+                    else: 
+                        hatch=None
+                    ax[0].bar(xtickpos[i]+j+xtickoffset+w*l, model_metrics_df_filt['r2'+suffix], width=w, label=model_type, color=c, alpha=alpha, hatch=hatch)
+                    ax[1].bar(xtickpos[i]+j+xtickoffset+w*l, model_metrics_df_filt['mae_norm'+suffix], width=w, label=model_type, color=c, alpha=alpha, hatch=hatch)
+                    if annotate_vals:
+                        ax[0].annotate(round(model_metrics_df_filt['r2'+suffix],2), (xtickpos[i]+j+xtickoffset+w*l, model_metrics_df_filt['r2'+suffix]))
+                        ax[1].annotate(round(model_metrics_df_filt['mae_norm'+suffix],2), (xtickpos[i]+j+xtickoffset+w*l, model_metrics_df_filt['mae_norm'+suffix]))
     
-    for k in range(nrows): 
+    for row in range(nrows): 
         xtickpos = []
         xticklabels = []
         for i, yvar in enumerate(yvar_list):
             xtickpos += [2*i+1, 2*i+2]
             xticklabels += [f'{yvar}'+'\n'+'ALL FEATURES', f'{yvar}'+'\n'+'SELECTED FEATURES']
-        ax[k].set_xticks(xtickpos, xticklabels, fontsize=16)
+        ax[row].set_xticks(xtickpos, xticklabels, fontsize=16)
         
     # set ylim for MAE plots
-    ymax_mae = np.max(model_metrics_df[['mae_norm'+suffix_list[0], 'mae_norm'+suffix_list[1]]].to_numpy())
     ax[0].set_ylim([0.2,1])
     ax[1].set_ylim([0,0.25])
     ax[0].set_ylabel('R2', fontsize=16)
     ax[1].set_ylabel('MAE, normalized (train)', fontsize=16)
     ymax = ax.flatten()[0].get_position().ymax
-    legend = [f'{model_type}_{train_or_cv}' for model_type in models_to_eval_list for train_or_cv in ['train', 'cv']]
+    # legend = [f'{model_type}{train_or_cv.replace("_avg","")}' for model_type in models_to_eval_list for train_or_cv in suffix_list]
+    legend = [f'{model_type} ({all_or_selected})' for all_or_selected in ['all features', 'selected features'] for model_type in models_to_eval_list ]
     plt.legend(legend, fontsize=16)
     if figtitle is not None:
         plt.suptitle(figtitle, y=ymax*1.03, fontsize=24)    

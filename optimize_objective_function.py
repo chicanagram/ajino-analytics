@@ -276,8 +276,8 @@ starting_point_params_to_fix = {
 # get data
 X_featureset_idx, Y_featureset_idx = 1,0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-dataset_suffix = '_norm_with_val'
-featureset_suffix =  '_ajinovalidation' # '_curated2' # '_combi2' # '_compactness-opt'
+dataset_suffix = '_norm' # '_norm_with_val'
+featureset_suffix =  '_ajinovalidation3' # '_curated2' # '_combi2' # '_compactness-opt'
 dataset_name_wsuffix = dataset_name + dataset_suffix
 Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
 models_to_eval_list = ['randomforest', 'xgb']
@@ -305,8 +305,10 @@ kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_t
 
 # combine results
 model_metrics_df_dict = {0: kfold_metrics_avg_orig, 1: kfold_metrics_avg}
-plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list+['ENSEMBLE'], yvar_list, suffix_list=['_train_avg', '_test_avg'], annotate_vals=True)
+# plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list+['ENSEMBLE'], yvar_list, suffix_list=['_train_avg', '_test_avg'], annotate_vals=True)
 
+#%% get plot for paper
+plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list+['ENSEMBLE'], yvar_list, suffix_list=['_test_avg'], annotate_vals=True, alpha_dict={0:0.5,1:1})
 
 
 #%% 

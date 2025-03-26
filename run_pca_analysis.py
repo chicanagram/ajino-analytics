@@ -21,35 +21,41 @@ csv_fpath = data_folder + 'DATA.csv'
 df = pd.read_csv(csv_fpath)
 print(df.shape)
 
+# magnify loadings
+magnify_loadings = 6 # None
+
 # feature to name mapping
 name_to_feature_mapping_dict = {
-    'CPPs': {
-        'VCD': 'VCD (E6 cells/mL)',
-        'Via': 'Viability (%)',
-        'Titer': 'Titer (mg/L)',
-        'Gluc': 'Glucose (g/L)',
-        'Lac': 'Lac (g/L)',
-        'NH4+': 'NH4+ (mM)',
-        'Osm': 'Osmolarity (mOsm/kg)',
-    },
+    # 'CPPs': {
+    #     'VCD': 'VCD (E6 cells/mL)',
+    #     'Via': 'Viability (%)',
+    #     'Titer': 'Titer (mg/L)',
+    #     'Gluc': 'Glucose (g/L)',
+    #     'Lac': 'Lac (g/L)',
+    #     'NH4+': 'NH4+ (mM)',
+    #     'Osm': 'Osmolarity (mOsm/kg)',
+    # },
     # 'CQAs': {
     #     'Titer': 'Titer (mg/L)',
     #     'Man5': 'mannosylation',
     #     'Fuc': 'fucosylation',
     #     'Gal': 'galactosylation',
     # },
-    'CPPs/CQAs': {
-        'VCD': 'VCD (E6 cells/mL)',
-        'Via': 'Viability (%)',
-        'Titer': 'Titer (mg/L)',
-        'Fuc': 'fucosylation',
-        'Gal': 'galactosylation',
-        'Gluc_14': 'Glucose (g/L)',
-        'Lac_14': 'Lac (g/L)',
-        'NH4+_14': 'NH4+ (mM)',
-        'Osm_14': 'Osmolarity (mOsm/kg)',
-        'Man5_14': 'mannosylation',
-    },
+    # 'CPPs/CQAs': {
+    #     'VCD': 'VCD (E6 cells/mL)',
+    #     'Via': 'Viability (%)',
+    #     'Titer': 'Titer (mg/L)',
+    #     'Fuc': 'fucosylation',
+    #     'Gal': 'galactosylation',
+    #     'Gluc_14': 'Glucose (g/L)',
+    #     'Lac_14': 'Lac (g/L)',
+    #     'NH4+_14': 'NH4+ (mM)',
+    #     'Osm_14': 'Osmolarity (mOsm/kg)',
+    #     'Man5_14': 'mannosylation',
+    #     'pH': 'pH',
+    #     'DO': 'DO',
+    #     'feed vol': 'feed vol'
+    # },
     'CQAs/metabolites': {
         'VCD': 'VCD (E6 cells/mL)_14',
         'Via': 'Viability (%)_14',
@@ -61,10 +67,13 @@ name_to_feature_mapping_dict = {
         'Lac_7': 'Lac (g/L)_7',
         'NH4+_7': 'NH4+ (mM)_7',
         'Osm_7': 'Osmolarity (mOsm/kg)_7',
-        # 'Gluc_14': 'Glucose (g/L)_14',
-        # 'Lac_14': 'Lac (g/L)_14',
-        # 'NH4+_14': 'NH4+ (mM)_14',
-        # 'Osm_14': 'Osmolarity (mOsm/kg)_14',
+        'Gluc_14': 'Glucose (g/L)_14',
+        'Lac_14': 'Lac (g/L)_14',
+        'NH4+_14': 'NH4+ (mM)_14',
+        'Osm_14': 'Osmolarity (mOsm/kg)_14',
+        'pH': 'pH',
+        'DO': 'DO',
+        'feed %': 'feed %'
     },
 }
 
@@ -78,7 +87,7 @@ for k, (pca_set_name, name_to_feature_mapping) in enumerate(name_to_feature_mapp
         var_to_pca = list(name_to_feature_mapping.values())
         varnames_to_pca_init = [v for v in list(name_to_feature_mapping.keys())]
     else:
-        var_to_pca = [v+'_14' for v in list(name_to_feature_mapping.values())]
+        var_to_pca = [v+'_14' if v not in ['pH','feed %','DO'] else v for v in list(name_to_feature_mapping.values())]
         print(var_to_pca)
         varnames_to_pca_init = [v for v in list(name_to_feature_mapping.keys())]
     # add features to eval if not in PCA list
@@ -108,6 +117,8 @@ for k, (pca_set_name, name_to_feature_mapping) in enumerate(name_to_feature_mapp
     # Get loadings (feature directions)
     loadings = pca.components_.T  # Shape: (n_features, n_components)
     
+    loadings_magnified = loadings*5
+    
     # Plot the PCA-transformed data
     color_feature = titer/man5
     legend_suffix = 'Titer / Man5'
@@ -121,8 +132,13 @@ for k, (pca_set_name, name_to_feature_mapping) in enumerate(name_to_feature_mapp
     
  
     for i, feature in enumerate(varnames_to_pca):
-        plt.arrow(0, 0, loadings[i, 0], loadings[i, 1], color=cmap[i], head_width=0.05, length_includes_head=True)
-        plt.text(loadings[i, 0] * 1.1, loadings[i, 1] * 1.1, feature, color=cmap[i], fontsize=8)
+        if magnify_loadings is not None:
+            loadings_magfactor = magnify_loadings
+        else: 
+            loadings_magfactor = 1
+        plt.arrow(0, 0, loadings[i, 0]*loadings_magfactor, loadings[i, 1]*loadings_magfactor, color=cmap[i], head_width=0.05, length_includes_head=True)
+        plt.text(loadings[i, 0]*loadings_magfactor * 1.1, loadings[i, 1]*loadings_magfactor * 1.1, feature, color=cmap[i], fontsize=8)
+        
     
     # Decorate the plot
     plt.axhline(0, color='grey', linestyle='--', linewidth=0.5)

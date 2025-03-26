@@ -98,7 +98,7 @@ for yvar in yvar_list_key:
 # iterate through experiments
 for i, exp in enumerate(['Val-A', 'Val-B']): 
     val_data_exp = val_data[val_data['Exp']==exp]
-    conditions = val_data_exp['exp_label'].tolist()
+    conditions = [c for c in val_data_exp['exp_label'].tolist() if c.find('Combi')==-1]
     conditions_deduped = []
     # get unique conditions
     for c in conditions: 
@@ -150,14 +150,13 @@ for i, exp in enumerate(['Val-A', 'Val-B']):
     plt.show()
                 
 #%% 
-
-df_norm.columns.tolist()
-
-
-
-
-
-
+xvar_base_list = []
+for xvar in xvar_list: 
+    xvar_base = xvar.replace('_feed','').replace('_basal','') 
+    if xvar_base not in xvar_base_list:
+        xvar_base_list.append(xvar_base)
+print(len(xvar_base_list))
+print(xvar_base_list)
 
 
 

@@ -110,7 +110,7 @@ dataset_name = 'DATA'
 dataset_suffix = ''
 df_raw = pd.read_csv(f'{data_folder}{dataset_name}{dataset_suffix}.csv', index_col=0)
 cqa_list = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation']
-use_baseline_norm_for_runs_wo_baseline = False
+use_baseline_norm_for_runs_wo_baseline = True
 
 # get unique id exp#_basal_feed_pH_DO_feed%
 exp_feed_procparams_id = []
