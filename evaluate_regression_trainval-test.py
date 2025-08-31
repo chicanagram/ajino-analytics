@@ -103,7 +103,7 @@ def run_modelparam_optimization(Y, X, yvar_list, xvar_list, model_params_to_eval
 
 # load data
 featureset_list = [(1,0)] # [(4,0)] # 
-dataset_suffix = '_norm' # '_norm_with_val-A' # '' # '' # '_avgnorm'
+dataset_suffix = '' # '_norm' # '_norm_with_val-A' # '_avgnorm'
 f = 1
 n_splits = 10 # 5 # 
 yvar_list = yvar_list_key.copy()
@@ -124,7 +124,7 @@ if optimize_model_params:
     
 else: 
     model_params_to_eval = None
-    models_to_eval_list = ['xgb', 'randomforest', 'plsr', 'lasso'] # ['xgb', 'randomforest'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
+    models_to_eval_list = ['gp'] # ['randomforest', 'xgb', 'gp'] # ['xgb', 'randomforest', 'plsr', 'lasso'] # ['xgb', 'randomforest'] # ['plsr']# ['plsr', 'randomforest'] #  ['lasso'] # 
     model_params_opt = model_params.copy()
     
 # if optimize_feature_subset is None:  
@@ -217,8 +217,11 @@ for (X_featureset_idx, Y_featureset_idx) in featureset_list:
                 metrics, model = evaluate_model_on_train_test_data(X_test_, y_test, X_trainval_, y_trainval, model_dict, scoring=scoring)
             
                 # get features
-                coefs = get_feature_coefficients(model, model_type)
-                xvar_list_sorted, coefs_sorted = order_features_by_coefficient_importance(coefs, xvar_list_, filter_out_zeros=True)
+                try:
+                    coefs = get_feature_coefficients(model, model_type)
+                    xvar_list_sorted, coefs_sorted = order_features_by_coefficient_importance(coefs, xvar_list_, filter_out_zeros=True)
+                except: 
+                    coefs, coefs_sorted, xvar_list_sorted = None, None, xvar_list_
                 if model_type=='lasso':
                     coef_lists_bymodelyvar[model_type][yvar] += xvar_list_sorted
                 metrics.update({'k':k, 'yvar':yvar, 'xvar_sorted': ', '.join(list(xvar_list_sorted))})

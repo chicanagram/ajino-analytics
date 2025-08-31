@@ -6,9 +6,6 @@ from plot_utils import heatmap, annotate_heatmap
 from variables import data_folder, figure_folder, var_dict_all, overall_glyco_cqas, sort_list, yvar_list_key, xvar_list_dict_prefilt
 from matplotlib import colormaps
 
-# 
-
-
 # # get data from specific dataset
 # X_featureset_idx, Y_featureset_idx = 1, 0
 # dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
@@ -18,13 +15,11 @@ from matplotlib import colormaps
 # Y, X, Xscaled, yvar_list, xvar_list = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder, return_XYarr_dict=return_XYarr_dict)
 
 
-
-
 mediacomposition_fname = 'MediaComposition_avg.csv'
 df = pd.read_csv(f'{data_folder}{mediacomposition_fname}', index_col=0)
 
 # filter for subset of media types
-df = df[df.index.isin(['Basal-A', 'Basal-B', 'Basal-C', 'Basal-D', 'Feed-a', 'Feed-d', 'Feed-e', 'Feed-f'])]
+df = df[df.index.isin(['Basal-A', 'Basal-B', 'Basal-C', 'Basal-D', 'Feed-a', 'Feed-b', 'Feed-c', 'Feed-d', 'Feed-e', 'Feed-f'])]
 media_names = list(df.index)
 cmap = [plt.cm.tab10(i) for i in range(len(media_names))]
 media_dict = {
@@ -32,8 +27,6 @@ media_dict = {
     'Feed':[b for b in media_names if b.find('Feed')>-1],
     }
 xvar_list = var_dict_all['media_components'] # df.columns.tolist()
-
-fig, ax = plt.subplots(2,1, figsize=(20,20))
 
 # get normalized values
 df_norm = df.copy()
@@ -52,9 +45,13 @@ for i, basal_or_feed in enumerate(['Basal','Feed']):
                 y_arr = y_arr/y_max
             else:
                 y_arr = (y_arr - y_min)/(y_max-y_min)
-        df_norm.loc[media_list, xvar] = y_arr
                 
+            # print(basal_or_feed, xvar, y_min, y_max, y_arr)
+        df_norm.loc[media_list, xvar] = y_arr
+             
+#%% visualize as scatter plot
 # plot normalized values for basal or feed
+fig, ax = plt.subplots(2,1, figsize=(20,20))
 for i, basal_or_feed in enumerate(['Basal','Feed']):
     media_list = media_dict[basal_or_feed]
     df_basal_or_feed = df[df.index.isin(media_list)]
@@ -66,7 +63,20 @@ for i, basal_or_feed in enumerate(['Basal','Feed']):
     ax[i].legend(media_list, loc=(1.02,0.5))
     ax[i].set_title(f'{basal_or_feed} media components (min-max scaled)', fontsize=20)
 plt.show()
-    
+
+#%% visualize as heatmap
+
+fig, ax = plt.subplots(1,2, figsize=(10,20))
+
+for i, basal_or_feed in enumerate(['Basal','Feed']):
+    media_list = media_dict[basal_or_feed]
+    df_norm_basal_or_feed = df_norm[df_norm.index.isin(media_list)].transpose()
+    nutrients = list(df_norm_basal_or_feed.index)
+    print(df_norm_basal_or_feed)
+    heatmap(df_norm_basal_or_feed.to_numpy(), c='viridis', ax=ax[i], datamin=0, datamax=1, logscale_cmap=False, annotate=None, row_labels=nutrients, col_labels=media_list, show_gridlines=False, labeltop=False, rotation=90, show_colorbar=False, fontsize=8)
+    ax[i].set_title(f'{basal_or_feed} media composition' + '\n(normalized)', fontsize=12)
+
+plt.show()
             
             
             

@@ -81,12 +81,15 @@ with open(data_folder + 'X1Y0_norm_with_val_unshuffled.pkl', 'wb') as f:
     
 #%% plot validation data
 
+plot_control_points = False 
+annotate_with_tstat_or_pval = 'tstat'
+
 fig, ax = plt.subplots(4,2, figsize=(20,20))
 plt.subplots_adjust(hspace=0.1, wspace=0.2)
 
 # get axis limits
 ax_lim = {}
-factor = 0.05
+factor = 0.02
 for yvar in yvar_list_key:
      arr = val_data[yvar].to_numpy()
      arr_min = np.nanmin(arr)
@@ -106,10 +109,10 @@ for i, exp in enumerate(['Val-A', 'Val-B']):
             conditions_deduped.append(c)
     # iterate througy yvar
     for k, yvar in enumerate(yvar_list_key):
+        print(yvar)
         
         # iterate through conditions
         for j, c in enumerate(conditions_deduped):
-            print(c)
             val_data_exp_condition = val_data_exp[val_data_exp['exp_label']==c]
             x = np.array([j,j])
             y = val_data_exp_condition[yvar].to_numpy()
@@ -122,17 +125,32 @@ for i, exp in enumerate(['Val-A', 'Val-B']):
             else: 
                 t_stat, p_value = ttest_ind(y_ref, y, equal_var=True)
                 # annotate with p-value
-                ax[k,i].annotate(round(p_value,3), (j,y_avg))
-                print(yvar, c, y, y_ref, round(p_value,3))
+                if annotate_with_tstat_or_pval=='pval':
+                    ax[k,i].annotate(round(p_value,3), (j,y_avg))
+                elif annotate_with_tstat_or_pval=='tstat':
+                    ax[k,i].annotate(round(t_stat,3), (j,y_avg))
+                # print(yvar, c, y, y_ref, 't-stat:', round(t_stat,3), 'p-val:', round(p_value,3))
+                print(c, 't-stat:', round(t_stat,3), 'p-val:', round(p_value,3))
+                
             # plot 
-            ax[k,i].scatter(x, y)
-            ax[k,i].plot(x, y, linestyle='--')
-            ax[k,i].set_ylabel(f'{yvar} (normalized)')
-            ax[k,i].set_title(f'{yvar} [Exp {exp[-1]}]' )
+            if (plot_control_points and c=='CTRL') or c!='CTRL':
+                # ax[k,i].scatter(x, y)
+                ax[k,i].scatter(np.mean(x), np.mean(y), s=42)
+                ax[k,i].plot(x, y, linestyle='--')
+                ax[k,i].set_ylabel(f'{yvar} (normalized)')
+                ax[k,i].set_title(f'{yvar} [Exp {exp[-1]}]' )
+                
+            # set xticks
+            if plot_control_points:
+                conditions_to_label = conditions_deduped
+                ticks = list(range(len(conditions_to_label)))
+            else:
+                conditions_to_label = conditions_deduped[1:]
+                ticks = list(range(1,len(conditions_to_label)+1))
             if k==len(yvar_list_key)-1:
-                ax[k,i].set_xticks(ticks=list(range(len(conditions_deduped))), labels=conditions_deduped, rotation=90)
+                ax[k,i].set_xticks(ticks=ticks, labels=conditions_to_label, rotation=45, ha='right')
             else: 
-                ax[k,i].set_xticks(ticks=list(range(len(conditions_deduped))), labels=[])
+                ax[k,i].set_xticks(ticks=ticks, labels=[])
             ax[k,i].set_ylim(ax_lim[yvar])
         print()
 plt.show()
@@ -157,10 +175,5 @@ for xvar in xvar_list:
         xvar_base_list.append(xvar_base)
 print(len(xvar_base_list))
 print(xvar_base_list)
-
-
-
-
-
 
         

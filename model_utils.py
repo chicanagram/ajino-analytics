@@ -9,10 +9,13 @@ Created on Wed Jul 24 16:49:45 2024
 import numpy as np
 from scipy.stats import spearmanr, pearsonr
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Lasso, Ridge
 from xgboost import XGBRegressor
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import ConstantKernel, RBF, WhiteKernel
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -20,6 +23,7 @@ from variables import model_params, model_cmap
 from plot_utils import figure_folder, heatmap, convert_figidx_to_rowcolidx
 
 data_folder = '../ajino-analytics-data/'
+
 #%% cross-validation testing
 
 def get_corr_coef(x, y, corr_to_get=['spearmanr', 'pearsonr']):
@@ -32,12 +36,23 @@ def get_corr_coef(x, y, corr_to_get=['spearmanr', 'pearsonr']):
     return res
 
 
-def get_score(y, ypred, scoring):
-    if scoring=='mae':
+def get_score(y, ypred, scoring, get_norm_score=True):
+    if scoring=='r2': 
+        score = r2_score(y, ypred)
+    elif scoring=='mae':
         score = mean_absolute_error(y, ypred)
     elif scoring=='rmse':
         score = root_mean_squared_error(y, ypred)
-    return score
+    elif scoring=='PearsonR':
+        score = pearsonr(y, ypred)[0]
+    elif scoring=='SpearmanR':
+        score = spearmanr(y, ypred)[0]
+    if not get_norm_score:
+        return round(score,3)
+    else: 
+        score_norm = score/np.mean(y)
+        return round(score,3), round(score_norm,3)
+        
 
 def perform_mean_std_scaling(xtrain, xtest=None):
     mean = np.mean(xtrain, axis=0)
@@ -50,9 +65,8 @@ def perform_mean_std_scaling(xtrain, xtest=None):
     return mean, std, xtrain_scaled, xtest_scaled
     
 
-def adjusted_loocv_with_scoring(X, y, model_dict, scoring='mae', scale_data=False):
+def adjusted_loocv_with_scoring(X, y, model_dict, score_type_list=['mae', 'r2'], scale_data=False):
     n = len(y)
-    ymean = np.mean(y)
     ypred_loocv = np.zeros((n,))
     regr = model_dict['model']
     for test_idx in range(n):
@@ -68,58 +82,81 @@ def adjusted_loocv_with_scoring(X, y, model_dict, scoring='mae', scale_data=Fals
         # fit training data
         regr.fit(Xtrain, ytrain)
         # predict on test data
-        ypred_loocv[test_idx] = regr.predict(Xtest)        
+        ypred_loocv[test_idx] = regr.predict(Xtest) 
         
-    # calculate MAE score for ypred_loocv 
-    score = round(get_score(y, ypred_loocv, scoring),3)
-    score_norm = round(score/ymean, 3)
-    # calculate R2 score for ypred_loocv
-    r2 = round(r2_score(y, ypred_loocv),2)
-    
-    # update model dict
-    model_dict.update({
-        f'{scoring}_cv':score, 
-        f'{scoring}_norm_cv': score_norm,
-        'r2_cv': r2,
-        'ypred_cv': ypred_loocv
-        })
+    # update model dict with ypred values
+    model_dict.update({'ypred_cv': ypred_loocv})
+        
+    # calculate test metrics for ypred_loocv 
+    for score_type in score_type_list:
+        score, score_norm = get_score(y, ypred_loocv, score_type)
+        model_dict.update({f'{score_type}_cv':score, f'{score_type}_norm_cv':score_norm})
+
     return model_dict
 
-def kfold_cv_with_scoring(X, y, model_dict, scoring='mae', n_splits=8, scale_data=False):
+
+def train_test_with_torch_nn(X_train, y_train, X_test, y_test, num_epochs=800, lr=0.0005, batch_size=32, output_scaler=None, layers=[42,24,12], dropout=0.2):
+    import torch
+    from torch.utils.data import DataLoader, TensorDataset
+    import torch.optim as optim
+    from nn_model_utils import MLPRegressor, WeightedMSELoss, train_model, evaluate_model 
+    
+    # model = MLPRegressor(input_size=76, hidden_sizes=[48, 36, 24, 12], dropout_p=0.2, num_outputs=1)
+    model = MLPRegressor(input_size=X_train.shape[1], hidden_sizes=layers, dropout_p=dropout, num_outputs=1)
+    # model = MLPRegressor(input_size=76, hidden_sizes=[36, 12], dropout_p=0.2, num_outputs=1)
+    # model = MLPRegressor(input_size=76, hidden_sizes=[24], dropout_p=0.2, num_outputs=1)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    criterion = WeightedMSELoss(weights=[1])
+    train_dataset = TensorDataset(torch.tensor(X_train), torch.tensor(y_train, dtype=torch.float32))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    val_loader = None
+    # train
+    train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs)
+    # test
+    test_dataset = TensorDataset(torch.tensor(X_test), torch.tensor(y_test, dtype=torch.float32))
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    test_predictions = evaluate_model(model, test_loader)
+    return test_predictions
+    
+
+def kfold_cv_with_scoring(X, y, model_dict, score_type_list=['r2', 'mae', 'rmse'], n_splits=8, output_scaler=None):
     from sklearn.model_selection import KFold
+    model_type = model_dict['model_type']
     n = len(y)
-    ymean = np.mean(y)
     ypred_cv = np.zeros((n,))
     regr = model_dict['model']
+    
 
-    scores=[]
-    kFold=KFold(n_splits=n_splits, shuffle=False)
+    kFold=KFold(n_splits=n_splits, shuffle=True, random_state=42)
     for train_index, test_index in kFold.split(X):
         X_train, X_test, y_train, y_test = X[train_index], X[test_index], y[train_index], y[test_index]
-        regr.fit(X_train, y_train)
-        ypred_test = regr.predict(X_test)
-        ypred_cv[test_index] = ypred_test
-        scores.append(get_score(y_test, ypred_test, scoring))
- 
-    # calculate mean MAE test score across k folds
-    score = round(np.mean(np.array(scores)),3)
-    score_norm = round(score/ymean, 3)
-    # calculate R2 score for ypred_loocv
-    r2 = round(r2_score(y, ypred_cv),2)
+        
+        if model_type not in ['mlp', 'cnn']:
+            regr.fit(X_train, y_train)
+            ypred_test = regr.predict(X_test)
+        else:
+            ypred_test = train_test_with_torch_nn(X_train, y_train, X_test, y_test, num_epochs=800, lr=0.0005, batch_size=32, output_scaler=output_scaler)
+        ypred_cv[test_index] = ypred_test.reshape(-1)
+
+    # update model dict with ypred values
+    if output_scaler is not None:
+        ypred_cv = output_scaler.inverse_transform(ypred_cv.reshape(-1,1)).reshape(-1)
+        y = output_scaler.inverse_transform(y.reshape(-1,1)).reshape(-1)
+    model_dict.update({'ypred_cv': ypred_cv})
     
-    # update model dict
-    model_dict.update({
-        f'{scoring}_cv':score, 
-        f'{scoring}_norm_cv': score_norm,
-        'r2_cv': r2,
-        'ypred_cv': ypred_cv
-        })
+    # calculate test metrics across k folds
+    for score_type in score_type_list:
+        score, score_norm = get_score(y, ypred_cv, score_type)
+        model_dict.update({f'{score_type}_cv':score, f'{score_type}_norm_cv':score_norm})
+
     return model_dict
 
-def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='mae', cv=None, scale_data=False, print_output=True):
+def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, score_type_list=['r2', 'mae', 'rmse'], cv=None, scale_data=False, print_output=True):
     
-    ymean = np.mean(y)
     model_params = []
+    print('score_type_list:', score_type_list)
+    input_scaler = None
+    output_scaler = None
     
     # get model
     for i, model_dict in enumerate(model_list):
@@ -146,74 +183,101 @@ def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='ma
             n_estimators = model_dict['n_estimators']
             model = XGBRegressor(objective="reg:squarederror", n_estimators=n_estimators, random_state=0)
             model_params.append(('n_estimators',n_estimators))
+        elif model_type=='gp':
+            kernel = ConstantKernel(1.0, (1e-3, 1e3)) * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2)) + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-5, 1e1))
+            model = GaussianProcessRegressor(
+                kernel=kernel,
+                alpha=0.0,                # we already model noise via WhiteKernel
+                n_restarts_optimizer=10,  # multiple restarts for better optima
+                normalize_y=True,         # standardize targets internally
+                random_state=42
+                )
+        elif model_type=='mlp':
+            model = None
+            input_scaler = MinMaxScaler() 
+            output_scaler = MinMaxScaler()
+            X = input_scaler.fit_transform(X)
+            y = output_scaler.fit_transform(y.reshape(-1,1))  
+        elif model_type=='cnn':
+            model = None
+            input_scaler = MinMaxScaler() 
+            output_scaler = MinMaxScaler()
+            X = input_scaler.fit_transform(X)
+            y = output_scaler.fit_transform(y.reshape(-1,1))  
+            
+            
         model_dict.update({'model':model})
         
         # perform cross-validation
         if cv is None:
-            model_dict = adjusted_loocv_with_scoring(X,y, model_dict, scoring=scoring, scale_data=scale_data)
+            model_dict = adjusted_loocv_with_scoring(X,y, model_dict, score_type_list=score_type_list, output_scaler=output_scaler)
         else: 
-            model_dict = kfold_cv_with_scoring(X,y, model_dict, scoring=scoring, n_splits=cv, scale_data=scale_data)
+            model_dict = kfold_cv_with_scoring(X,y, model_dict, score_type_list=score_type_list, n_splits=cv, output_scaler=output_scaler)
             
-        
-        # get CV metrics (MAE score, R2)
-        cv_score = model_dict[f'{scoring}_cv'] 
-        cv_score_norm = model_dict[f'{scoring}_norm_cv'] 
-        cv_r2 = model_dict['r2_cv']
-        ypred_cv = model_dict['ypred_cv']
         
         # fit all data and get R2 score
         if scale_data:
             _, _, X_, _ = perform_mean_std_scaling(X, None)
         else: 
             X_ = X.copy()
-        model.fit(X_, y)
-        ypred = model.predict(X_)
-        r2 = round(r2_score(y, ypred),2)
-        fitted_score = round(get_score(y, ypred, scoring),3)
-        fitted_score_norm = round(fitted_score/ymean,3)
-        model_list[i].update({'r2_train': r2, 'r2_cv': cv_r2, 'fitted_score': fitted_score, 'cv_score': cv_score, 'model':model, 'ypred':ypred})
-        if print_output:
-            print(f'[{yvar} <> {model_type}], R2:{r2}, R2 (CV):{cv_r2}, fitted {scoring}:{fitted_score} ({round(fitted_score_norm*100,1)}%), {scoring} (CV):{cv_score} ({round(cv_score_norm*100,1)}%), ')
+            
+        # train model
+        if model_type not in ['mlp','cnn']:
+            model.fit(X_, y)
+            ypred_train = model.predict(X_)
+        else: 
+            ypred_test = train_test_with_torch_nn(X_, y, X_, y, num_epochs=800, lr=0.0005, batch_size=32, output_scaler=output_scaler)
+
         
-    # calculate ensemble scores, if applicable
-    ypred_ensemble_cv = np.zeros((len(y), len(model_list)))
-    ypred_ensemble = np.zeros((len(y), len(model_list)))
-    w = 1/len(model_list)
-    for i, model_dict in enumerate(model_list):
-        if 'w' in model_dict:
-            w = model_dict['w']
-        ypred_ensemble_cv[:,i] = model_dict['ypred_cv']*w
-        ypred_ensemble[:,i] = model_dict['ypred']*w
-    if len(model_list)>1:
-        ypred_ensemble_cv = np.sum(ypred_ensemble_cv, axis=1)
-        cv_score_ensemble = round(get_score(y, ypred_ensemble_cv, scoring),3)
-        cv_score_ensemble_norm = round(cv_score_ensemble/ymean,3)
-        cv_r2_ensemble = round(r2_score(y, ypred_ensemble_cv),2)
-        ypred_ensemble = np.sum(ypred_ensemble, axis=1)
-        fitted_score_ensemble = round(get_score(y, ypred_ensemble, scoring),3)
-        fitted_score_ensemble_norm = round(fitted_score_ensemble/ymean,3)
-        r2_ensemble = round(r2_score(y, ypred_ensemble),2)
+        model_list[i].update({'model':model, 'ypred':ypred_train})
+        for score_type in score_type_list: 
+            score_train, score_train_norm = get_score(y, ypred_train, score_type)
+            model_list[i].update({f'{score_type}_train': round(score_train,3), f'{score_type}_norm_train': round(score_train_norm,3)})
         if print_output:
-            print(f'[{yvar} <> ENSEMBLE], R2:{r2_ensemble}, CV R2:{cv_r2_ensemble}, fitted {scoring}:{fitted_score_ensemble} ({round(fitted_score_ensemble_norm*100,1)}%), CV {scoring}:{cv_score_ensemble} ({round(cv_score_ensemble_norm*100,1)}%), ')
+            print(f'[{yvar} <> {model_type}]') 
+            for score_type in score_type_list:
+                print(f'{score_type}: TRAIN {model_dict[f"{score_type}_train"]} ({model_dict[f"{score_type}_norm_train"]}) | TEST {model_dict[f"{score_type}_cv"]} ({model_dict[f"{score_type}_norm_cv"]})')
+        
+    
+    # UPDATE INDIVIDUAL MODEL SCORES
+    if len(model_list)==1: 
+        metrics = {
+            'model_type': model_type, 
+            'yvar': yvar, 
+            'model_params': model_params
+            }
+        metrics.update({k:model_dict[k] for k in model_dict if k not in ['model', 'ypred', 'ypred_cv']})
+    # UPDATE ENSEMBLE MODEL SCORES
     else: 
-        r2_ensemble = r2
-        ypred_ensemble_cv = ypred_cv
-        fitted_score_ensemble = fitted_score
-        fitted_score_ensemble_norm = round(fitted_score_ensemble/ymean,3)
-        cv_score_ensemble = cv_score
-        cv_score_ensemble_norm = round(cv_score_ensemble/ymean,3)
-        cv_r2_ensemble = cv_r2
+        metrics = {
+            'model_type': 'ENSEMBLE', 
+            'yvar': yvar, 
+            'model_params': None
+            }
         
-    # update overall metrics
-    metrics = {
-        'model_type': model_type, 'yvar': yvar, 
-        'model_params': model_params,
-        'r2_train': r2_ensemble, 'r2_cv': cv_r2_ensemble, 
-        f'{scoring}_train': fitted_score_ensemble, 
-        f'{scoring}_norm_train': fitted_score_ensemble_norm,
-        f'{scoring}_cv':cv_score_ensemble, 
-        f'{scoring}_norm_cv': cv_score_ensemble_norm
-        }
+        # ensemble predictions
+        ypred_ensemble_cv = np.zeros((len(y), len(model_list)))
+        ypred_ensemble = np.zeros((len(y), len(model_list)))
+        w = 1/len(model_list)
+        for i, model_dict in enumerate(model_list):
+            if 'w' in model_dict:
+                w = model_dict['w']
+            ypred_ensemble_cv[:,i] = model_dict['ypred_cv']*w
+            ypred_ensemble[:,i] = model_dict['ypred']*w
+        # get scores
+        for score_type in score_type_list: 
+            ypred_ensemble = np.sum(ypred_ensemble, axis=1)
+            ypred_ensemble_cv = np.sum(ypred_ensemble_cv, axis=1)
+            score_train, score_train_norm = get_score(y, ypred_train, score_type)
+            score_cv, score_cv_norm = get_score(y, ypred_train, score_type)
+            model_list[i].update({f'{score_type}_ensemble_train': round(score_train,3), f'{score_type}_norm_ensemble_train': round(score_train_norm,3)})
+            model_list[i].update({f'{score_type}_ensemble_cv': round(score_cv,3), f'{score_type}_norm_ensemble_cv': round(score_cv_norm,3)})
+        if print_output:
+            print(f'[{yvar} <> ENSEMBLE]') 
+            for score_type in score_type_list:
+                print(f'{score_type}: TRAIN {model_dict[f"{score_type}_ensemble_train"]} ({model_dict[f"{score_type}_norm_ensemble_train"]}) | TEST {model_dict[f"{score_type}_ensemble_cv"]} ({model_dict[f"{score_type}_norm_ensemble_cv"]})')
+
+        
     # plot predicted values
     if plot_predictions:
         plt.scatter(y, ypred_ensemble)
@@ -222,6 +286,7 @@ def fit_model_with_cv(X,y, yvar, model_list, plot_predictions=False, scoring='ma
         plt.xlabel('Actual')
         plt.show()
     
+    print()
     return model_list, metrics
 
 
@@ -270,7 +335,7 @@ def split_data_to_trainval_test(X, n_splits=5, split_type='random'):
     return split_dict
             
 
-def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_name_wsuffix, featureset_suffix='', n_splits=10, scoring='mae', models_to_eval_list=['randomforest'], model_params=model_params, save_results=None, show_plots=True, print_progress=True, model_cmap=model_cmap):
+def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_name_wsuffix, featureset_suffix='', n_splits=5, scoring='mae', models_to_eval_list=['randomforest'], model_params=model_params, save_results=None, show_plots=True, print_progress=True, model_cmap=model_cmap):
 
     print(model_cmap)
     # create train-val / test splits using KFold
@@ -317,7 +382,7 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
                 kfold_metrics.append(metrics)
                 
                 # get test predictions
-                ypred_test_bymodel[model_type][test_idx,i] = metrics['ypred_test']
+                ypred_test_bymodel[model_type][test_idx, i] = metrics['ypred_test']
     
     if print_progress:
         print('\n********************************************************')
@@ -339,17 +404,20 @@ def run_trainval_test(X, Y, yvar_list, xvar_selected, xvar_list_all, dataset_nam
             SURROGATE_MODELS[yvar][model_type] = model
         
             # get features
-            coefs = get_feature_coefficients(model, model_type)
-            features_selected_sorted, coefs_sorted = order_features_by_coefficient_importance(coefs, features_selected, filter_out_zeros=True)
-            features_selected_sorted_dict.update({yvar: features_selected_sorted})
-            xticks = np.arange(len(coefs_sorted))
-            if show_plots:
-                plt.figure(figsize=(20,10))
-                plt.bar(xticks, coefs_sorted)
-                plt.xticks(xticks, features_selected_sorted, rotation=90, fontsize=8)
-                plt.ylabel('Feature importance')
-                plt.title(f'{yvar}: {model_type} feature importances')
-                plt.show()
+            try: 
+                coefs = get_feature_coefficients(model, model_type)
+                features_selected_sorted, coefs_sorted = order_features_by_coefficient_importance(coefs, features_selected, filter_out_zeros=True)
+                features_selected_sorted_dict.update({yvar: features_selected_sorted})
+                xticks = np.arange(len(coefs_sorted))
+                if show_plots:
+                    plt.figure(figsize=(20,10))
+                    plt.bar(xticks, coefs_sorted)
+                    plt.xticks(xticks, features_selected_sorted, rotation=90, fontsize=8)
+                    plt.ylabel('Feature importance')
+                    plt.title(f'{yvar}: {model_type} feature importances')
+                    plt.show()
+            except: 
+                print(f'No feature importance estimates for {model_type} model.')
                 
     # get ensemble results
     if len(models_to_eval_list)>1:
@@ -530,20 +598,55 @@ def evaluate_model_on_train_test_data(X_test, y_test, X_train, y_train, model_di
         param_name = 'n_estimators'
         param_val = model_dict[param_name]
         model = XGBRegressor(objective="reg:squarederror", n_estimators=param_val, random_state=0)
+    elif model_type=='gp':
+        from sklearn.gaussian_process import GaussianProcessRegressor
+        from sklearn.gaussian_process.kernels import ConstantKernel, RBF, WhiteKernel
+        param_name = 'rbf_lengthscale'
+        param_val = 1.0
+        kernel = ConstantKernel(1.0, (1e-3, 1e3)) * RBF(length_scale=param_val, length_scale_bounds=(1e-2, 1e2)) + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-5, 1e1))
+        model = GaussianProcessRegressor(
+            kernel=kernel,
+            alpha=0.0,                # we already model noise via WhiteKernel
+            n_restarts_optimizer=10,  # multiple restarts for better optima
+            normalize_y=True,         # standardize targets internally
+            random_state=42
+        )
+    elif model_type=='mlp':
+        model = None
+        param_name = 'num_epochs'
+        param_val = 800
+        input_scaler = MinMaxScaler() 
+        output_scaler = MinMaxScaler()
+        X_ = input_scaler.fit_transform(np.concatenate((X_train_, X_test_), axis=0))
+        y = output_scaler.fit_transform(np.concatenate((y_train, y_test), axis=0).reshape(-1,1))
+        X_train_ = X_[:X_train.shape[0],:]
+        X_test_ = X_[X_train.shape[0]:,:]
+        y_train = y[:X_train.shape[0],:]
+        y_test = y[X_train.shape[0]:,:]
+
         
-    # get train results
-    model.fit(X_train_, y_train)
-    ypred_train = model.predict(X_train_)
+    # train model
+    if model_type not in ['mlp','cnn']:
+        model.fit(X_train_, y_train)
+        ypred_train = model.predict(X_train_)
+        ypred_test = model.predict(X_test_)
+    else: 
+        ypred_train = train_test_with_torch_nn(X_train_, y_train, X_train_, y_train, num_epochs=800, lr=0.0005, batch_size=32, output_scaler=output_scaler)
+        ypred_test = train_test_with_torch_nn(X_train_, y_train, X_test_, y_test, num_epochs=800, lr=0.0005, batch_size=32, output_scaler=output_scaler)
+        ypred_train = output_scaler.inverse_transform(ypred_train).reshape(-1)
+        ypred_test = output_scaler.inverse_transform(ypred_test).reshape(-1)
+        y_train = output_scaler.inverse_transform(y_train).reshape(-1)
+        y_test = output_scaler.inverse_transform(y_test).reshape(-1)
+
+        
     # calculate MAE score for ypred 
-    score_train = round(get_score(y_train, ypred_train, scoring),3)
+    score_train = round(get_score(y_train, ypred_train, scoring, get_norm_score=False),3)
     score_norm_train = round(score_train/ymean, 3)
     # calculate R2 score for ypred_loocv
     r2_train = round(r2_score(y_train, ypred_train),2)
     
-    # perform evaluation on test data
-    ypred_test = model.predict(X_test_)
     # calculate MAE score for ypred 
-    score_test = round(get_score(y_test, ypred_test, scoring),3)
+    score_test = round(get_score(y_test, ypred_test, scoring, get_norm_score=False),3)
     score_norm_test = round(score_test/ymean, 3)
     # calculate R2 score for ypred_loocv
     r2_test = round(r2_score(y_test, ypred_test),2)
@@ -840,98 +943,151 @@ def order_features_by_importance(feature_scoring_agg_yvar, xvar_list):
 
 
 #%%
-def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False):
+def plot_model_metrics(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False, score_type_list=['r2','mae_norm']):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))+1
     legenditems_count = 0
     legenditems_dict = {}
     for i, yvar in enumerate(yvar_list):
-        for k, model_type in enumerate(models_to_eval_list):
+        for j, model_type in enumerate(models_to_eval_list):
             c = model_cmap[model_type]
             w = barwidth / (len(models_to_eval_list)*2)
-            xtickoffset = -w*len(models_to_eval_list)/2 + 0.5*w + k*w*2
+            xtickoffset = -w*len(models_to_eval_list)/2 + 0.5*w + j*w*2
             model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
-            ## R2
-            legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
-            legenditems_count += 1 
-            legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]], width=w, label=model_type, color=c)
-            legenditems_count += 1
-            if annotate_vals:
-                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
-                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[1]],2), (xtickpos[i]+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]]+0.015))
+            
+            for k, score_type in enumerate(score_type_list):
+                if k==0:
+                    legenditems_dict[legenditems_count] = ax[k].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
+                    legenditems_count += 1 
+                    legenditems_dict[legenditems_count] = ax[k].bar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt[score_type+suffix_list[1]], width=w, label=model_type, color=c)
+                    legenditems_count += 1
+                else: 
+                    ax[k].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
+                    ax[k].bar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt[score_type+suffix_list[1]], width=w, label=model_type, color=c)
+                ymax_ax = np.max(model_metrics_df[[score_type+suffix_list[0], score_type+suffix_list[1]]].to_numpy())
 
-            ## MAE_norm
-            ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c, alpha=0.5, hatch='/')
-            ax[1].bar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt['mae_norm'+suffix_list[1]], width=w, label=model_type, color=c)
-            if plot_errors: 
-                ## R2
-                ax[0].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], yerr=model_metrics_df_filt['r2'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
-                ax[0].errorbar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt['r2'+suffix_list[1]], yerr=model_metrics_df_filt['r2'+suffix_list[1].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
-                ## MAE_norm
-                ax[1].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], yerr=model_metrics_df_filt['mae_norm'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
-                ax[1].errorbar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt['mae_norm'+suffix_list[1]], yerr=model_metrics_df_filt['mae_norm'+suffix_list[1].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+                # annotate values
+                if annotate_vals:
+                    ax[k].annotate(round(model_metrics_df_filt[score_type+suffix_list[0]],3), (xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]]+0.015*ymax_ax))
+                    ax[k].annotate(round(model_metrics_df_filt[score_type+suffix_list[1]],3), (xtickpos[i]+xtickoffset+w, model_metrics_df_filt[score_type+suffix_list[1]]+0.015*ymax_ax))
+                # plot errors
+                if plot_errors:
+                    ax[k].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]], yerr=model_metrics_df_filt[score_type+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+                    ax[k].errorbar(xtickpos[i]+xtickoffset+w, model_metrics_df_filt[score_type+suffix_list[1]], yerr=model_metrics_df_filt[score_type+suffix_list[1].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+                
+                # set axis limits 
+                ax[k].set_ylim([0,ymax_ax*1.2])
+                ax[k].set_ylabel(score_type.upper(), fontsize=20)
+                
+                # set xticks
+                ax[k].set_xticks(xtickpos+xtickoffset/2, yvar_list, fontsize=20)
     
-    for k in range(nrows): 
-        ax[k].set_xticks(xtickpos+xtickoffset/2, yvar_list, fontsize=20)
-        
-    # set ylim for MAE plots
-    ymax_mae = np.max(model_metrics_df[['mae_norm'+suffix_list[0], 'mae_norm'+suffix_list[1]]].to_numpy())
-    ax[0].set_ylim([0,1])
-    ax[1].set_ylim([0,ymax_mae*1.5])
-    ax[0].set_ylabel('R2', fontsize=20)
-    ax[1].set_ylabel('MAE, normalized', fontsize=20)
-    ymax = ax.flatten()[0].get_position().ymax
+    # set legend
     legend = [f'{model_type}_{train_or_cv}' for model_type in models_to_eval_list for train_or_cv in ['train', 'cv']]
     plt.legend([v for k,v in legenditems_dict.items()], legend, fontsize=16)
     if figtitle is not None:
+        ymax = ax.flatten()[0].get_position().ymax
         plt.suptitle(figtitle, y=ymax*1.03, fontsize=24)    
+    # save figure
     if savefig is not None:
         fig.savefig(savefig, bbox_inches='tight')
     plt.show()
     
 
-def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False):
+
+def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False, score_type_list=['r2','mae_norm']):
     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
     xtickpos = np.arange(len(yvar_list))+1
     legenditems_count = 0
     legenditems_dict = {}
     for i, yvar in enumerate(yvar_list):
-        for k, model_type in enumerate(models_to_eval_list):
+        for j, model_type in enumerate(models_to_eval_list):
             c = model_cmap[model_type]
             w = barwidth / len(models_to_eval_list)
-            xtickoffset = -w*len(models_to_eval_list)/2 + 0.5*w + k*w
+            xtickoffset = -w*len(models_to_eval_list)/2 + 0.5*w + j*w
             model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
-            ## R2
-            legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c)
-            legenditems_count += 1
-            ## MAE_norm
-            ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c)
-            if annotate_vals:
-                ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
-                ax[1].annotate(round(model_metrics_df_filt['mae_norm'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]]+0.008))
-            if plot_errors: 
-                ## R2
-                ax[0].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], yerr=model_metrics_df_filt['r2'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
-                ## MAE_norm
-                ax[1].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], yerr=model_metrics_df_filt['mae_norm'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
-    
+            
+            
+            for k, score_type in enumerate(score_type_list):
+                if k==0:
+                    legenditems_dict[legenditems_count] = ax[k].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]], width=w, label=model_type, color=c)
+                    legenditems_count += 1 
+                else: 
+                    ax[k].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]], width=w, label=model_type, color=c)
+                ymax_ax = np.max(model_metrics_df[score_type+suffix_list[0]].to_numpy())
+
+                # annotate values
+                if annotate_vals:
+                    ax[k].annotate(round(model_metrics_df_filt[score_type+suffix_list[0]],3), (xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]]+0.015*ymax_ax))
+                # plot errors
+                if plot_errors:
+                    ax[k].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt[score_type+suffix_list[0]], yerr=model_metrics_df_filt[score_type+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+                
+                # set axis limits 
+                ax[k].set_ylim([0,ymax_ax*1.2])
+                ax[k].set_ylabel(score_type.upper(), fontsize=20)
+                
+                # set xticks
+                ax[k].set_xticks(xtickpos+xtickoffset/2, yvar_list, fontsize=20)
+     
     for k in range(nrows): 
         ax[k].set_xticks(xtickpos+xtickoffset/2, yvar_list, fontsize=20)
         
     # set ylim for MAE plots
-    ymax_mae = np.max(model_metrics_df['mae_norm'+suffix_list[0]].to_numpy())
-    ax[0].set_ylim([0,1])
-    ax[1].set_ylim([0,ymax_mae*1.5])
-    ax[0].set_ylabel('R2', fontsize=20)
-    ax[1].set_ylabel('MAE, normalized', fontsize=20)
     ymax = ax.flatten()[0].get_position().ymax
     legend = [f'{model_type}_{train_or_cv}' for model_type in models_to_eval_list for train_or_cv in ['cv']]
     plt.legend([v for k,v in legenditems_dict.items()], legend, fontsize=16)
+    plt.tight_layout()
     if figtitle is not None:
-        plt.suptitle(figtitle, y=ymax*1.03, fontsize=24)    
+        plt.suptitle(figtitle, y=1.02, fontsize=24)    
     if savefig is not None:
         fig.savefig(savefig, bbox_inches='tight')
     plt.show()
+    
+
+
+# def plot_model_metrics_cv(model_metrics_df, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(20,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_cv'], plot_errors=False, model_cmap=model_cmap, annotate_vals=False):
+#     fig, ax = plt.subplots(nrows,ncols, figsize=figsize)
+#     xtickpos = np.arange(len(yvar_list))+1
+#     legenditems_count = 0
+#     legenditems_dict = {}
+#     for i, yvar in enumerate(yvar_list):
+#         for k, model_type in enumerate(models_to_eval_list):
+#             c = model_cmap[model_type]
+#             w = barwidth / len(models_to_eval_list)
+#             xtickoffset = -w*len(models_to_eval_list)/2 + 0.5*w + k*w
+#             model_metrics_df_filt = model_metrics_df[(model_metrics_df.yvar==yvar) & (model_metrics_df.model_type==model_type)].iloc[0].to_dict()
+#             ## R2
+#             legenditems_dict[legenditems_count] = ax[0].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], width=w, label=model_type, color=c)
+#             legenditems_count += 1
+#             ## MAE_norm
+#             ax[1].bar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], width=w, label=model_type, color=c)
+#             if annotate_vals:
+#                 ax[0].annotate(round(model_metrics_df_filt['r2'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]]+0.015))
+#                 ax[1].annotate(round(model_metrics_df_filt['mae_norm'+suffix_list[0]],2), (xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]]+0.008))
+#             if plot_errors: 
+#                 ## R2
+#                 ax[0].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['r2'+suffix_list[0]], yerr=model_metrics_df_filt['r2'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+#                 ## MAE_norm
+#                 ax[1].errorbar(xtickpos[i]+xtickoffset, model_metrics_df_filt['mae_norm'+suffix_list[0]], yerr=model_metrics_df_filt['mae_norm'+suffix_list[0].replace('avg','std')], color='k', fmt='o', markersize=8, capsize=10, label=None)
+    
+#     for k in range(nrows): 
+#         ax[k].set_xticks(xtickpos+xtickoffset/2, yvar_list, fontsize=20)
+        
+#     # set ylim for MAE plots
+#     ymax_mae = np.max(model_metrics_df['mae_norm'+suffix_list[0]].to_numpy())
+#     ax[0].set_ylim([0,1])
+#     ax[1].set_ylim([0,ymax_mae*1.5])
+#     ax[0].set_ylabel('R2', fontsize=20)
+#     ax[1].set_ylabel('MAE, normalized', fontsize=20)
+#     ymax = ax.flatten()[0].get_position().ymax
+#     legend = [f'{model_type}_{train_or_cv}' for model_type in models_to_eval_list for train_or_cv in ['cv']]
+#     plt.legend([v for k,v in legenditems_dict.items()], legend, fontsize=16)
+#     if figtitle is not None:
+#         plt.suptitle(figtitle, y=ymax*1.03, fontsize=24)    
+#     if savefig is not None:
+#         fig.savefig(savefig, bbox_inches='tight')
+#     plt.show()
 
 
 def plot_model_metrics_all(model_metrics_df_dict, models_to_eval_list, yvar_list, nrows=2, ncols=1, figsize=(30,15), barwidth=0.8, figtitle=None, savefig=None, suffix_list=['_train','_cv'],  model_cmap=model_cmap, annotate_vals=False, alpha_dict=None):

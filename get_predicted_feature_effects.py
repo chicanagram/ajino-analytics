@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import matplotlib.pyplot as plt
-from variables import data_folder, yvar_list_key, feature_selections, model_cmap
+from variables import data_folder, yvar_list_key, feature_selections, model_cmap, baseline_norm
 from model_utils import run_trainval_test
 from utils import sort_list, get_XYdata_for_featureset
 from plot_utils import convert_figidx_to_rowcolidx
@@ -37,7 +37,7 @@ class GetFeatureEffects:
                  res0,
                  x0,
                  yvar_list=yvar_list_key,
-                 models_to_evaluate=['randomforest', 'xgb'],
+                 models_to_evaluate=['gp', 'randomforest', 'xgb'],
                  num_pts=10,
                  baseline_nutrient_concentrations=None
                  ):
@@ -52,7 +52,7 @@ class GetFeatureEffects:
         self.XSTD = XSTD
         self.res0 = res0
         self.x0 = x0
-        self.yvar_list = yvar_list_key
+        self.yvar_list = yvar_list
         self.models_to_evaluate = models_to_evaluate
         self.num_pts = num_pts
         self.baseline_nutrient_concentrations = baseline_nutrient_concentrations
@@ -79,7 +79,7 @@ class GetFeatureEffects:
         self.x_dict = x_dict
         return x_dict
 
-    def predict_CQAs(self, x_dict=None):
+    def predict_CQAs(self, x_dict=None, baseline_norm=None):
         if x_dict is None:
             x_dict = self.x_dict
         res_allmodels = {yvar: {feature: np.zeros((self.num_pts, len(
@@ -104,7 +104,10 @@ class GetFeatureEffects:
                     print(f'ypred ({yvar} <> {features} <> {model_type}):', ypred)
                 # average results, if needed
                 ypred_avg = np.mean(res_allmodels[yvar][features], axis=1)
+                if baseline_norm is not None: 
+                    ypred_avg *= baseline_norm[yvar.split('_')[0]]
                 res[yvar][features] = ypred_avg
+                
                 print(f'ypred ({yvar} <> {features} <> (AVG)):', ypred_avg, '\n')
         return res
 
@@ -179,14 +182,15 @@ class GetFeatureEffects:
 # get data
 X_featureset_idx, Y_featureset_idx = 1, 0
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
-dataset_suffix = ''
-featureset_suffix =  '_curated2' # '_compactness-opt' # '_curated' #'_knowledge-opt' # '_model-opt'
+dataset_suffix = '_norm' # '' # 
+featureset_suffix =  '_all' # '_curated2' #  # '_compactness-opt' # '_curated' #'_knowledge-opt' # '_model-opt'
 dataset_name_wsuffix = dataset_name + dataset_suffix
 Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(
     X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
-models_to_eval_list = ['randomforest', 'xgb']
+models_to_eval_list = ['gp'] # ['randomforest', 'xgb']
 
-yvar_list = yvar_list_key
+yvar_list = yvar_list_key#[1:2]
+#Y = Y[:,1:2]
 features_selected_dict = feature_selections[featureset_suffix]
 
 # get SURROGATE MODELS with selected feature set
@@ -195,7 +199,7 @@ kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_t
 
 # %% Get base conditions
 
-dataset_name_wsuffix = 'X6Y0'
+dataset_name_wsuffix = 'X1Y0' # 'X6Y0'
 
 # ['best'] #  # ['best1', 'best2', 'best3'] #
 starting_point_list = ['avg-Basal-A-Feed-a'] # , 'best1', 'best3']
@@ -292,9 +296,13 @@ for starting_point in starting_point_list:
     features_opt_INDIVIDUAL = [(f,) for f in features_opt]
     idxs_opt_INDIVIDUAL = [(i,) for i in idxs_opt]
     FeatureEffects = GetFeatureEffects(features_selected_dict, features_selected_idxs_dict, features_opt_INDIVIDUAL, idxs_opt_INDIVIDUAL, bounds_dict,
-                                       XMEAN, XSTD, SURROGATE_MODELS, res0_ref, x0, yvar_list_key, ['randomforest', 'xgb'], num_pts=num_pts, baseline_nutrient_concentrations=baseline_nutrient_concentrations)
+                                       XMEAN, XSTD, SURROGATE_MODELS, res0_ref, x0, yvar_list, models_to_eval_list, num_pts=num_pts, baseline_nutrient_concentrations=baseline_nutrient_concentrations)
     x_dict = FeatureEffects.compose_input()
-    res_indiv = FeatureEffects.predict_CQAs(x_dict)
+    if 'norm' in dataset_suffix:
+        res_indiv = FeatureEffects.predict_CQAs(x_dict, baseline_norm)
+    else: 
+        res_indiv = FeatureEffects.predict_CQAs(x_dict, None)
+        
     if len(features_opt)<10:
         fig, ax = FeatureEffects.plot_predicted_effects(res_indiv, nrows=1, ncols=len(features_opt), ylim=ylim, show_xticks=True)
         fig.suptitle(starting_point, y=1.0, fontsize=16)
@@ -332,9 +340,13 @@ for starting_point in starting_point_list:
     print(idxs_opt_PAIR)
 
     FeatureEffects = GetFeatureEffects(features_selected_dict, features_selected_idxs_dict, features_opt_PAIR, idxs_opt_PAIR, bounds_dict,
-                                        XMEAN, XSTD, SURROGATE_MODELS, res0_ref, x0, yvar_list_key, ['randomforest', 'xgb'], num_pts=num_pts, baseline_nutrient_concentrations=baseline_nutrient_concentrations)
+                                        XMEAN, XSTD, SURROGATE_MODELS, res0_ref, x0, yvar_list, models_to_eval_list, num_pts=num_pts, baseline_nutrient_concentrations=baseline_nutrient_concentrations)
     x_dict = FeatureEffects.compose_input()
-    res_pair = FeatureEffects.predict_CQAs(x_dict)
+    if 'norm' in dataset_suffix:
+        res_pair = FeatureEffects.predict_CQAs(x_dict, baseline_norm)
+    else: 
+        res_pair = FeatureEffects.predict_CQAs(x_dict)
+    
     if len(features_opt_PAIR)<10:
         fig, ax = FeatureEffects.plot_predicted_effects(res_pair, nrows=1, ncols=len(features_opt_PAIR), ylim=ylim, show_xticks=True, figsize=(24, 3.5))
         fig.suptitle(starting_point, y=1.0, fontsize=16)
@@ -400,10 +412,10 @@ for k, (feature, feature_idx_to_opt) in enumerate(zip(features_opt, idxs_opt)):
 # get model predictions #
 #########################
 num_pts = 3
-models_to_evaluate = ['randomforest', 'xgb']
+models_to_evaluate = models_to_eval_list
 res_allmodels = {}
 res = {}
-for i, yvar in enumerate(yvar_list_key):
+for i, yvar in enumerate(yvar_list):
     res_allmodels[yvar] = {}
     res[yvar] = {}
     print(yvar)
@@ -417,6 +429,8 @@ for i, yvar in enumerate(yvar_list_key):
         for j, model_type in enumerate(models_to_evaluate):
             model = SURROGATE_MODELS[yvar][model_type]
             ypred = model.predict(x_input_scaled)
+            if 'norm' in dataset_suffix:
+                ypred *= baseline_norm[yvar.split('_')[0]]
             res_allmodels[yvar][(feature,)][:, j] = ypred
             # print(f'ypred ({model_type}):', ypred)
         # average results, if needed
@@ -427,7 +441,8 @@ for i, yvar in enumerate(yvar_list_key):
 res_df_cols = ['base', 'feature', 'feature_type', 'yvar', 'x_min', 'x_baseline', 'x_max', 'y_baseline', 'ypred_min', 'ypre_baseline', 'ypred_max']
 res_df = pd.DataFrame(columns=res_df_cols, index=range(len(features_opt)*len(yvar_list_key)))
 row_count = 0
-for i, yvar in enumerate(yvar_list_key):
+for yvar in yvar_list:
+    i = yvar_list_key.index(yvar)
     y_baseline = y0[i]
     for k, feature in enumerate(features_opt):
         x = x_dict[yvar][(feature,)][:,k]
@@ -454,6 +469,7 @@ res_df_summary = res_df_summary.sort_values(by=['yvar', 'feature_type_feed', 'ba
 res_df.to_csv(f'{data_folder}predicted_effect_of_varying_indiv_features.csv')
 res_df_summary.to_csv(f'{data_folder}predicted_effect_of_varying_indiv_features_summary.csv')
 
+
 #%%
 
 #####################
@@ -462,7 +478,7 @@ res_df_summary.to_csv(f'{data_folder}predicted_effect_of_varying_indiv_features_
 
 features_to_plot_sorted = sort_list(features_opt[:-3]) + ['DO', 'pH', 'feed vol']
 feed_percentage_list = list(set(df['feed %'].tolist()))
-for i, yvar in enumerate(yvar_list_key):
+for i, yvar in enumerate(yvar_list):
     # initialize figure
     if len(features_opt)<10:
         nrows = 1

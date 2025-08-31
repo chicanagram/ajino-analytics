@@ -11,7 +11,7 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from variables import data_folder, figure_folder, model_cmap
+from variables import data_folder, figure_folder
 
 
 def convert_figidx_to_rowcolidx(figidx, ncols): 
@@ -221,7 +221,7 @@ def heatmap(array, c='viridis', ax=None, cbar_kw={}, cbarlabel="", datamin=None,
     colormap = cmap(norm(data_cmap))   
         
     # Set the positions of nan values in colormap to 'lime'
-    colormap[naninds[0], naninds[1], :3] = 0,1,0
+    colormap[naninds[0], naninds[1], :3] = 1,1,1# 0,1,0
     colormap[infinds[0], infinds[1], :3] = 1,1,1
 
     # plot colormap

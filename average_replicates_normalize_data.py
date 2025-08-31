@@ -9,7 +9,7 @@ Created on Fri Jul 19 15:50:03 2024
 import numpy as np
 import pickle
 import pandas as pd
-from variables import data_folder
+from variables import data_folder, baseline_norm
 
 data_folder = '../ajino-analytics-data/'
 
@@ -110,7 +110,7 @@ dataset_name = 'DATA'
 dataset_suffix = ''
 df_raw = pd.read_csv(f'{data_folder}{dataset_name}{dataset_suffix}.csv', index_col=0)
 cqa_list = ['Titer (mg/L)', 'mannosylation', 'fucosylation', 'galactosylation']
-use_baseline_norm_for_runs_wo_baseline = True
+use_baseline_norm_for_runs_wo_baseline = False
 
 # get unique id exp#_basal_feed_pH_DO_feed%
 exp_feed_procparams_id = []
@@ -152,13 +152,6 @@ print('Normalizing averaged data...')
 cqa_cols_dict = {cqa: [c for c in df_avg.columns.tolist() if c.find(cqa)>-1] for cqa in cqa_list}
 print(cqa_cols_dict)
 
-baseline_norm= {
-    'Titer (mg/L)': 9714.1342,
-     'mannosylation': 17.1716,
-     'fucosylation': 74.4403,
-     'galactosylation': 17.3755
- }
-
 count = 0
 for exp_num in unique_exp_num:
     df_avg_expnum = df_avg[df_avg['exp_num']==exp_num]
@@ -170,6 +163,7 @@ for exp_num in unique_exp_num:
         CQAnorm = {cqa: round(df_avg_expnum_REF.iloc[0][f'{cqa}_14'],4) for cqa in cqa_list}
     else: 
         CQAnorm = baseline_norm.copy()
+    print(CQAnorm)
     df_avgnorm_expnum = df_avg_expnum.copy()
     print(CQAnorm)
     # get columns containing cqa, normalize them by rerence D14 values

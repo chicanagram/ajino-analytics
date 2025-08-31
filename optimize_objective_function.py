@@ -198,9 +198,7 @@ Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_i
 # evaluate models
 feature_drop_test_res = []
 features_selected_dict = feature_selections[featureset_suffix]
-# for yvar in yvar_list_key: 
-# for yvar in [yvar_list_key[0],yvar_list_key[3]]: 
-for yvar in [yvar_list_key[3]]: 
+for yvar in yvar_list_key: 
     print(yvar)
     features_selected_yvar = features_selected_dict[yvar].copy()
     kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel = run_trainval_test(X, Y, yvar_list=[yvar], xvar_selected={yvar:features_selected_yvar}, xvar_list_all=xvar_list_all, dataset_name_wsuffix=dataset_name_wsuffix, featureset_suffix=featureset_suffix)
@@ -210,7 +208,7 @@ for yvar in [yvar_list_key[3]]:
         features_selected_yvar_MOD.remove(feature)
         features_selected_dict_MOD = {yvar: features_selected_yvar_MOD}    
         print(feature, features_selected_yvar_MOD)
-        kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS = run_trainval_test(X, Y, yvar_list=[yvar], xvar_selected=features_selected_dict_MOD, xvar_list_all=xvar_list_all, dataset_name_wsuffix=dataset_name_wsuffix, featureset_suffix=featureset_suffix)
+        kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel = run_trainval_test(X, Y, yvar_list=[yvar], xvar_selected=features_selected_dict_MOD, xvar_list_all=xvar_list_all, dataset_name_wsuffix=dataset_name_wsuffix, featureset_suffix=featureset_suffix)
         print(f'Dropped {feature}.  Features selected: {features_selected_yvar_MOD}')
         feature_drop_test_res.append({'yvar':yvar, 'feature_dropped':feature, 'features_selected': features_selected_yvar_MOD, 'r2_test_avg': kfold_metrics_avg.iloc[0]['r2_test_avg']})
 
@@ -280,7 +278,8 @@ dataset_suffix = '_norm' # '_norm_with_val'
 featureset_suffix =  '_ajinovalidation3' # '_curated2' # '_combi2' # '_compactness-opt'
 dataset_name_wsuffix = dataset_name + dataset_suffix
 Y, X, _, yvar_list_all, xvar_list_all = get_XYdata_for_featureset(X_featureset_idx, Y_featureset_idx, dataset_suffix=dataset_suffix, data_folder=data_folder)
-models_to_eval_list = ['randomforest', 'xgb']
+models_to_eval_list = ['randomforest', 'mlp'] # ['randomforest', 'xgb'] # 
+n_splits = 5
 
 yvar_list = yvar_list_key # ['Titer (mg/L)_14']# 
 features_selected_dict = feature_selections[featureset_suffix]
@@ -298,10 +297,10 @@ print('idxs_opt:', idxs_opt)
 
 
 # get results WITHOUT feature selection
-kfold_metrics_orig, kfold_metrics_avg_orig, SURROGATE_MODELS_orig, ypred_train_bymodel_orig, ypred_test_bymodel_orig = run_trainval_test(X, Y, yvar_list, xvar_list_all, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
+kfold_metrics_orig, kfold_metrics_avg_orig, SURROGATE_MODELS_orig, ypred_train_bymodel_orig, ypred_test_bymodel_orig = run_trainval_test(X, Y, yvar_list, xvar_list_all, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap, n_splits=n_splits)
 
 # get results WITH feature selection
-kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel = run_trainval_test(X, Y, yvar_list, features_selected_dict, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap)
+kfold_metrics, kfold_metrics_avg, SURROGATE_MODELS, ypred_train_bymodel, ypred_test_bymodel = run_trainval_test(X, Y, yvar_list, features_selected_dict, xvar_list_all, dataset_name_wsuffix, featureset_suffix, models_to_eval_list=models_to_eval_list, model_cmap=model_cmap, n_splits=n_splits)
 
 # combine results
 model_metrics_df_dict = {0: kfold_metrics_avg_orig, 1: kfold_metrics_avg}

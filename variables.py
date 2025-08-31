@@ -22,8 +22,7 @@ data_folder = '../ajino-analytics-data/'
 # figure fodler
 figure_folder = f'{data_folder}figures/'
 
-# colormap 
-model_cmap = {'randomforest': 'r', 'plsr': 'b', 'lasso': 'g', 'xgb':'purple', 'ridge':'orange', 'ENSEMBLE': 'k'}
+model_cmap = {'randomforest': 'r', 'plsr': 'b', 'lasso': 'g', 'xgb':'purple', 'mlp':'orange', 'cnn':'cyan', 'ridge':'orange', 'gp':'orange', 'ENSEMBLE': 'k'}
 
 sampling_rawdata_dict = {
     0: {'fname': '240402_20RP06-19_data for Astar_4conditions_v2.xlsx', 'skiprows': [2, 2, 2, 2, 2, None, 2, 1], 'usecols': ['B:CA', 'B:DR', 'B:BE', 'B:BE', 'B:AZ', None, 'B:AI', 'A:F'], 'cqa_startcol': [6, 6, 6, 6, 6, None, 2, 1], },
@@ -75,6 +74,13 @@ yvar_sublist_sets = [
 
 yvar_list_key = ['Titer (mg/L)_14', 'mannosylation_14',
                  'fucosylation_14', 'galactosylation_14']
+
+baseline_norm= {
+    'Titer (mg/L)': 9714.1342,
+     'mannosylation': 17.1716,
+     'fucosylation': 74.4403,
+     'galactosylation': 17.3755
+ }
 
 process_features = ['DO', 'pH', 'feed vol']
 
@@ -1322,6 +1328,13 @@ xvar_list_dict = {
 # %% FEATURE SELECTIONS
 
 feature_selections = {
+    '_all': {
+    'Titer (mg/L)_14': xvar_list_dict[1],
+    'mannosylation_14': xvar_list_dict[1],
+    'fucosylation_14': xvar_list_dict[1],
+    'galactosylation_14': xvar_list_dict[1],
+    },
+    
     '_initial_try': {
     'Titer (mg/L)_14': ['Co_feed', 'Arg_feed', 'Riboflavin_feed', 'Pro_feed', 'His_feed', 'Folic acid_feed', 'Fe_feed', 'Pyridoxine_feed', 'K_feed', 'Nicotinamide_feed', 'Uridine_feed', 'Zn_basal', 'DO', 'pH', 'feed vol'],
     'mannosylation_14': ['Riboflavin_feed', 'Riboflavin_basal', 'Ca_feed', 'Lys_basal', 'Uridine_feed', 'P_feed', 'Asp_basal', 'Thr_feed', 'Folic acid_basal', 'Biotin_basal', 'DO', 'pH', 'feed vol'],
@@ -1494,6 +1507,18 @@ default_params = {
         'fucosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
         'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
     },    
+    'gp': {
+        'Titer (mg/L)_14': [{'model_type': 'gp', 'n_estimators': 100}],
+        'mannosylation_14': [{'model_type': 'gp', 'n_estimators': 100}],
+        'fucosylation_14': [{'model_type': 'gp', 'n_estimators': 100}],
+        'galactosylation_14': [{'model_type': 'gp', 'n_estimators': 100}],
+    },    
+    'mlp': {
+        'Titer (mg/L)_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+        'mannosylation_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+        'fucosylation_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+        'galactosylation_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+        },
  }
 model_params = {
     'X1Y0': {
@@ -1522,11 +1547,23 @@ model_params = {
             'galactosylation_14': [{'model_type': 'xgb', 'n_estimators': 100}],
         },
         'ridge': {
-            'Titer (mg/L)_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
-            'mannosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
-            'fucosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.005}],
-            'galactosylation_14': [{'model_type': 'lasso', 'max_iter': 50000, 'alpha': 0.05}],
+            'Titer (mg/L)_14': [{'model_type': 'ridge', 'max_iter': 50000, 'alpha': 0.005}],
+            'mannosylation_14': [{'model_type': 'ridge', 'max_iter': 50000, 'alpha': 0.005}],
+            'fucosylation_14': [{'model_type': 'ridge', 'max_iter': 50000, 'alpha': 0.005}],
+            'galactosylation_14': [{'model_type': 'ridge', 'max_iter': 50000, 'alpha': 0.05}],
         },
+        'gp': {
+            'Titer (mg/L)_14': [{'model_type': 'gp', 'rbf_lengthscale': 1}],
+            'mannosylation_14': [{'model_type': 'gp', 'rbf_lengthscale': 1}],
+            'fucosylation_14': [{'model_type': 'gp', 'rbf_lengthscale': 1}],
+            'galactosylation_14': [{'model_type': 'gp', 'rbf_lengthscale': 1}],
+        },
+        'mlp': {
+            'Titer (mg/L)_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+            'mannosylation_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+            'fucosylation_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+            'galactosylation_14': [{'model_type': 'mlp', 'num_epochs': 800}],
+            },
     },
     'X4Y0': {
         'randomforest': {
@@ -1580,12 +1617,14 @@ model_params = {
    'X8Y0': default_params.copy(),
    'X9Y0': default_params.copy(),
    'X10Y0': default_params.copy(),
+   'X1Y0_all': default_params.copy(),
    'X1Y0_avgnorm': default_params.copy(),
    'X1Y0_norm': default_params.copy(),
    'X1Y0_norm_with_val': default_params.copy(),
    'X1Y0_norm_with_val_unshuffled': default_params.copy(),
    'X1Y0_norm_with_val-A': default_params.copy(),
    'X1Y0_norm_with_val-B': default_params.copy(),
+   'sampling': default_params.copy()
    }
    
    

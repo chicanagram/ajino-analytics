@@ -16,8 +16,8 @@ from model_utils import get_corr_coef
 
 #%% 
 # input params & dataset
-X_featureset_idx, Y_featureset_idx =  6, 0
-dataset_suffix = ''
+X_featureset_idx, Y_featureset_idx =  1, 0
+dataset_suffix = '_norm'
 yvar_list = yvar_list_key
 dataset_name = f'X{X_featureset_idx}Y{Y_featureset_idx}'
 dataset_name_wsuffix = dataset_name + dataset_suffix
