@@ -41,7 +41,7 @@ name_to_feature_mapping_dict = {
     #     'Fuc': 'fucosylation',
     #     'Gal': 'galactosylation',
     # },
-    # 'CPPs/CQAs': {
+    # 'CPPs & CQAs': {
     #     'VCD': 'VCD (E6 cells/mL)',
     #     'Via': 'Viability (%)',
     #     'Titer': 'Titer (mg/L)',
@@ -56,7 +56,7 @@ name_to_feature_mapping_dict = {
     #     'DO': 'DO',
     #     'feed vol': 'feed vol'
     # },
-    'CQAs/metabolites': {
+    'CQAs, CPPs and metabolites': {
         'VCD': 'VCD (E6 cells/mL)_14',
         'Via': 'Viability (%)_14',
         'Titer': 'Titer (mg/L)_14',
@@ -75,6 +75,24 @@ name_to_feature_mapping_dict = {
         'DO': 'DO',
         'feed %': 'feed %'
     },
+    # 'CQAs & metabolites': {
+    #     'Man5': 'mannosylation_14',
+    #     'Gal': 'galactosylation_14',
+    #     'NH4+_7': 'NH4+ (mM)_7',
+    #     'Lac_7': 'Lac (g/L)_7',
+    #     'Pro_7': 'Pro_7',
+    #     'Thr_7': 'Thr_7',
+    #     'Asn_7': 'Asn_7',
+    # },
+    # 'CQAs & metabolites': {
+    #     'Man5': 'mannosylation_14',
+    #     'Gal': 'galactosylation_14',
+    #     'NH4+_14': 'NH4+ (mM)_14',
+    #     'Lac_14': 'Lac (g/L)_14',
+    #     'Pro_14': 'Pro_14',
+    #     'Thr_14': 'Thr_14',
+    #     'Asn_14': 'Asn_14',
+    # },
 }
 
 key_var_mappings = {        
@@ -83,7 +101,7 @@ key_var_mappings = {
     }
 
 for k, (pca_set_name, name_to_feature_mapping) in enumerate(name_to_feature_mapping_dict.items()):
-    if pca_set_name == 'CQAs/metabolites':
+    if pca_set_name == 'CQAs & metabolites' or pca_set_name=='CQAs, CPPs and metabolites':
         var_to_pca = list(name_to_feature_mapping.values())
         varnames_to_pca_init = [v for v in list(name_to_feature_mapping.keys())]
     else:
@@ -148,6 +166,8 @@ for k, (pca_set_name, name_to_feature_mapping) in enumerate(name_to_feature_mapp
     plt.ylabel('Principal Component 2')
     plt.legend([f'All samples, color coded by {legend_suffix}'])
     plt.grid(False)
+    plt.tight_layout()
+    plt.savefig(f'{data_folder}PCA_{pca_set_name}.png', dpi=300)
     plt.show()
     
 #%% plot correlations between key CPPs

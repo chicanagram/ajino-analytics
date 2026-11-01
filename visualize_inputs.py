@@ -73,9 +73,11 @@ for i, basal_or_feed in enumerate(['Basal','Feed']):
     df_norm_basal_or_feed = df_norm[df_norm.index.isin(media_list)].transpose()
     nutrients = list(df_norm_basal_or_feed.index)
     print(df_norm_basal_or_feed)
-    heatmap(df_norm_basal_or_feed.to_numpy(), c='viridis', ax=ax[i], datamin=0, datamax=1, logscale_cmap=False, annotate=None, row_labels=nutrients, col_labels=media_list, show_gridlines=False, labeltop=False, rotation=90, show_colorbar=False, fontsize=8)
-    ax[i].set_title(f'{basal_or_feed} media composition' + '\n(normalized)', fontsize=12)
+    heatmap(df_norm_basal_or_feed.to_numpy(), c='viridis', ax=ax[i], datamin=0, datamax=1, logscale_cmap=False, annotate=None, row_labels=nutrients, col_labels=media_list, show_gridlines=False, labeltop=False, rotation=90, show_colorbar=False, fontsize=12)
+    ax[i].set_title(f'{basal_or_feed} media composition' + '\n(normalized)', fontsize=14)
 
+plt.tight_layout()
+plt.savefig(f'{data_folder}media_inputs.png', dpi=300)
 plt.show()
             
             

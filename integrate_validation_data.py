@@ -89,14 +89,15 @@ plt.subplots_adjust(hspace=0.1, wspace=0.2)
 
 # get axis limits
 ax_lim = {}
-factor = 0.02
+ax_interval = {}
+factor = 0.07
 for yvar in yvar_list_key:
      arr = val_data[yvar].to_numpy()
      arr_min = np.nanmin(arr)
      arr_max = np.nanmax(arr)
-     arr_range = arr_max-arr_min
-     ax_lim[yvar] = (arr_min-arr_range*factor, arr_max+arr_range*factor)
-     
+     interval = arr_max-arr_min
+     ax_lim[yvar] = (arr_min-interval*factor, arr_max+interval*factor)
+     ax_interval[yvar] = interval
 
 # iterate through experiments
 for i, exp in enumerate(['Val-A', 'Val-B']): 
@@ -123,22 +124,25 @@ for i, exp in enumerate(['Val-A', 'Val-B']):
                 y_ref = y.copy()
             # calculate t-test value, if not reference sample
             else: 
-                t_stat, p_value = ttest_ind(y_ref, y, equal_var=True)
+                t_stat, p_value = ttest_ind(y, y_ref, equal_var=True)
                 # annotate with p-value
                 if annotate_with_tstat_or_pval=='pval':
-                    ax[k,i].annotate(round(p_value,3), (j,y_avg))
+                    ax[k,i].annotate(round(p_value,3), (j,y_avg), fontsize=12)
                 elif annotate_with_tstat_or_pval=='tstat':
-                    ax[k,i].annotate(round(t_stat,3), (j,y_avg))
-                # print(yvar, c, y, y_ref, 't-stat:', round(t_stat,3), 'p-val:', round(p_value,3))
+                    if t_stat < 0:
+                        ax[k,i].annotate(round(t_stat,3), (j-0.05,y_avg-ax_interval[yvar]*0.05), fontsize=13)
+                    else: 
+                        ax[k,i].annotate(round(t_stat,3), (j-0.05,y_avg+ax_interval[yvar]*0.05), fontsize=13)
                 print(c, 't-stat:', round(t_stat,3), 'p-val:', round(p_value,3))
+                print('            ', 'y:', np.round(np.mean(y),2), '; y_ref:', np.round(np.mean(y_ref),2))
                 
             # plot 
             if (plot_control_points and c=='CTRL') or c!='CTRL':
                 # ax[k,i].scatter(x, y)
                 ax[k,i].scatter(np.mean(x), np.mean(y), s=42)
                 ax[k,i].plot(x, y, linestyle='--')
-                ax[k,i].set_ylabel(f'{yvar} (normalized)')
-                ax[k,i].set_title(f'{yvar} [Exp {exp[-1]}]' )
+                ax[k,i].set_ylabel(f'{yvar} (normalized)', fontsize=16)
+                ax[k,i].set_title(f'[Exp {exp[-1]}] Factor effects on Day 14 {yvar.replace("_14","")}', fontsize=16)
                 
             # set xticks
             if plot_control_points:
@@ -148,11 +152,13 @@ for i, exp in enumerate(['Val-A', 'Val-B']):
                 conditions_to_label = conditions_deduped[1:]
                 ticks = list(range(1,len(conditions_to_label)+1))
             if k==len(yvar_list_key)-1:
-                ax[k,i].set_xticks(ticks=ticks, labels=conditions_to_label, rotation=45, ha='right')
+                ax[k,i].set_xticks(ticks=ticks, labels=conditions_to_label, rotation=45, ha='right', fontsize=14)
             else: 
                 ax[k,i].set_xticks(ticks=ticks, labels=[])
             ax[k,i].set_ylim(ax_lim[yvar])
         print()
+plt.suptitle('One-Factor-At-A-Time Validation Study on Effect of Shortlisted Nutrients and Process Parameters', y=0.92, fontsize=22)
+plt.savefig(f'{data_folder}validation_results_vs_ref.png',bbox_inches='tight', dpi=300)
 plt.show()
             
 #%% 
